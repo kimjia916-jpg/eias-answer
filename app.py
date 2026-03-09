@@ -321,6 +321,7 @@ with st.sidebar:
             
             if st.button(label, key=f"q_{exam_num}_{idx}", use_container_width=True):
                 st.session_state.selected_q = q['text']
+                st.session_state.q_input_main = q['text']   # ← text_area 키 직접 업데이트
                 st.session_state.selected_score = q['score'] if q['score'] else '25'
                 st.session_state.selected_subj = q['subj']
                 st.session_state.generated_answer = ''
@@ -334,6 +335,7 @@ with st.sidebar:
             with col1:
                 if st.button(f"📄 {saved['question'][:30]}...", key=f"saved_{i}", use_container_width=True):
                     st.session_state.selected_q = saved['question']
+                    st.session_state.q_input_main = saved['question']   # ← 동일하게 수정
                     st.session_state.generated_answer = saved['answer']
                     st.rerun()
             with col2:
@@ -352,12 +354,12 @@ with col_input:
     
     question_input = st.text_area(
         "문제를 입력하거나 왼쪽에서 선택하세요",
-        value=st.session_state.selected_q,
         height=200,
         placeholder="예) 환경영향평가의 주민의견수렴 시 설명회·공청회 생략조건 및 생략 시 조치사항에 대하여 기술하시오. [25점]",
         key="q_input_main",
         label_visibility='collapsed'
     )
+    question_input = st.session_state.get('q_input_main', '')
     
     c1, c2 = st.columns(2)
     with c1:
