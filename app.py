@@ -247,45 +247,35 @@ def parse_eias_questions(text):
         i += 1
     return questions
 
+def extract_zip_text(filepath):
+    """ZIP 형식으로 저장된 파일에서 텍스트 추출 (모든 프로젝트 PDF가 이 형식)"""
+    import zipfile
+    with zipfile.ZipFile(filepath) as z:
+        txts = sorted(
+            [n for n in z.namelist() if n.endswith('.txt')],
+            key=lambda x: int(re.sub(r'\D', '', x) or '0')
+        )
+        return '\n'.join(z.read(t).decode('utf-8') for t in txts)
+
 def parse_gosi_questions(text):
+    """5급 공채 시험지 텍스트에서 '제N문' 형식 문제 파싱"""
     questions = []
-    lines = text.replace('\r\n', '\n').split('\n')
-    expanded = []
-    for line in lines:
-        line = line.strip()
-        if not line:
-            expanded.append(''); continue
-        parts = re.split(r'(?<!\d)(?=\b\d{1,2}\.[^\d])', line)
-        if len(parts) > 1:
-            for p in parts:
-                p = p.strip()
-                if p: expanded.append(p)
-        else:
-            expanded.append(line)
-    i = 0
-    while i < len(expanded):
-        line = expanded[i].strip()
-        m = re.match(r'^(\d{1,2})[\.]\s*(.+)', line)
-        if m:
-            num = int(m.group(1))
-            clean = m.group(2).strip()
-            if 1 <= num <= 20 and len(clean) >= 3:
-                score = _extract_score(clean)
-                if not score:
-                    for j2 in range(i+1, min(i+6, len(expanded))):
-                        score = _extract_score(expanded[j2])
-                        if score: break
-                extra = ''
-                j = i + 1
-                while j < len(expanded):
-                    nl = expanded[j].strip()
-                    if not nl or re.match(r'^\d{1,2}\.[^\d]', nl): break
-                    if nl.startswith(('-','·','•','∙')): extra += '\n' + nl
-                    j += 1
-                full = (clean + extra).strip()
-                if len(full) >= 3:
-                    questions.append({'text': full, 'score': score})
-        i += 1
+    text = text.replace('\r\n', '\n').replace('\r', '\n')
+    # '제 N 문' 패턴으로 분리
+    pattern = re.compile(r'제\s*(\d+)\s*문[\.。]?\s*(.+?)(?=제\s*\d+\s*문[\.。]?|\Z)', re.DOTALL)
+    for m in pattern.finditer(text):
+        num = m.group(1)
+        body = m.group(2).strip()
+        # 배점 추출 (총 N점)
+        score = ''
+        sm = re.search(r'\(총\s*(\d+)점\)', body)
+        if sm:
+            score = sm.group(1)
+        # 소문제 이전까지만 (1) 2) 형태)
+        first_sub = re.split(r'\n\d+\)', body)
+        q_text = first_sub[0].strip()
+        if len(q_text) > 5:
+            questions.append({'text': f'제{num}문. {q_text}', 'score': score})
     return questions
 
 
@@ -612,7 +602,16 @@ if st.session_state.exam_type == "환경영향평가사":
 
             if not has_data and not has_upload:
                 if has_proj_pdf:
-                    st.info("위 버튼으로 원본 PDF를 보고, 문제를 직접 입력해 주세요.\n또는 텍스트 파일을 업로드하면 문제 목록이 자동 생성됩니다.")
+                    # 프로젝트 ZIP 파일에서 자동 텍스트 추출 시도
+                    fname = EIAS_PDF_MAP.get(r, "")
+                    if fname:
+                        try:
+                            auto_text = extract_zip_text(f"{PDF_BASE}/{fname}")
+                            st.session_state.uploaded_texts[file_key] = auto_text
+                            st.session_state.uploaded_files[file_key] = {'bytes': b'', 'name': fname, 'type': 'text/plain'}
+                            st.rerun()
+                        except Exception:
+                            st.info("위 버튼으로 원본 PDF를 보고, 문제를 직접 입력해 주세요.\n또는 텍스트 파일을 업로드하면 문제 목록이 자동 생성됩니다.")
                 else:
                     st.warning(f"제{r}회 기출문제 파일이 없습니다.")
                 uploaded = st.file_uploader(f"제{r}회 기출문제 텍스트 업로드", type=["txt"], key=f"upload_eias_{r}")
@@ -626,8 +625,15 @@ if st.session_state.exam_type == "환경영향평가사":
             else:
                 subj_filter = st.radio("과목", ['전체', '환경정책', '국토계획', '실무', '제도'],
                                        horizontal=True, key=f"eias_sf_{r}", label_visibility='collapsed')
-                text = EXAM_DATA.get(str(r), '') if has_data else st.session_state.uploaded_texts.get(f"eias_{r}", '')
+                if has_data:
+                    text = EXAM_DATA.get(str(r), '')
+                else:
+                    text = st.session_state.uploaded_texts.get(f"eias_{r}", '')
                 qs = parse_eias_questions(text)
+                # EIAS 형식 파싱 결과가 없으면 '제N문' 형식 시도 (17회 이상)
+                if not qs:
+                    qs_gosi = parse_gosi_questions(text)
+                    qs = [{'text': q['text'], 'subj': '', 'score': q['score'], 'required': False} for q in qs_gosi]
                 filtered = qs if subj_filter == '전체' else [q for q in qs if q['subj'] == subj_filter]
                 st.caption(f"총 {len(filtered)}문제")
                 for idx, q in enumerate(filtered):
@@ -731,6 +737,16 @@ else:
                     st.success("업로드 완료!")
                     st.session_state.view_file_key = None
                     st.rerun()
+            elif has_proj and file_key not in st.session_state.uploaded_texts:
+                # 프로젝트 PDF(ZIP)에서 자동으로 텍스트 추출
+                fname = GOSI_PDF_MAP.get(subj, {}).get(yr, "")
+                if fname:
+                    try:
+                        auto_text = extract_zip_text(f"{PDF_BASE}/{fname}")
+                        st.session_state.uploaded_texts[file_key] = auto_text
+                        st.rerun()
+                    except Exception:
+                        st.info("📖 위 PDF 보기 버튼으로 문제를 확인하고 직접 입력해 주세요.")
             elif file_key in st.session_state.uploaded_texts:
                 text = st.session_state.uploaded_texts[file_key]
                 qs = parse_gosi_questions(text)
@@ -932,7 +948,7 @@ with st.sidebar:
 # ─── 푸터 ───
 st.markdown(
     "<div style='text-align:center;font-size:11px;color:#6b6657;padding:20px 0 10px'>"
-    "🌿 환경직 시험 모범답안 생성기 v5.2 · Powered by Claude AI"
+    "🌿 환경직 시험 모범답안 생성기 v5.3 · Powered by Claude AI"
     "</div>",
     unsafe_allow_html=True
 )
