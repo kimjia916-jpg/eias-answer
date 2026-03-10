@@ -1,10 +1,10 @@
 import streamlit as st
-import streamlit.components.v1 as components
 import anthropic
 import re
 import base64
 import io
-from exam_data import EXAM_DATA  # 환경영향평가사 1~16회
+import streamlit.components.v1 as components  # ← PDF Blob URL 방식에 필요
+from exam_data import EXAM_DATA # 환경영향평가사 1~16회
 
 # ─── 페이지 설정 ───
 st.set_page_config(
@@ -129,10 +129,10 @@ div[data-testid="stRadio"] label { font-size:13px; }
 
 
 # ─── 상수 정의 ───
-EIAS_ROUNDS = list(range(1, 28))   # 1~27회
-EIAS_DATA_AVAILABLE = list(range(1, 17))  # 1~16회 텍스트 데이터 내장
+EIAS_ROUNDS = list(range(1, 28)) # 1~27회
+EIAS_DATA_AVAILABLE = list(range(1, 17)) # 1~16회 텍스트 데이터 내장
 
-GOSI_YEARS = list(range(2025, 2001, -1))  # 2025~2002
+GOSI_YEARS = list(range(2025, 2001, -1)) # 2025~2002
 
 GOSI_SUBJECTS_REQUIRED = ["환경화학", "환경계획", "상하수도공학"]
 GOSI_SUBJECTS_ELECTIVE = ["소음진동학", "폐기물처리", "환경미생물학", "환경영향평가론", "대기오염관리", "수질오염관리"]
@@ -142,15 +142,15 @@ PDF_BASE = "data"
 
 # ─── 환경영향평가사 PDF 매핑 (1~27회) ───
 EIAS_PDF_MAP = {
-    1:  "제1회_환경영향평가사_필기시험_기출문제_1.pdf",
-    2:  "제2회_환경영향평가사_필기시험_기출문제.pdf",
-    3:  "제3회_환경영향평가사_필기시험_기출문제.pdf",
-    4:  "제4회_환경영향평가사_필기시험_기출문제.pdf",
-    5:  "제5회_환경영향평가사_필기시험_기출문제.pdf",
-    6:  "제6회_환경영향평가사_필기시험_기출문제.pdf",
-    7:  "제7회_환경영향평가사_필기시험_기출문제.pdf",
-    8:  "제8회_환경영향평가사_필기시험_기출문제.pdf",
-    9:  "제9회_필기시험_문제지.pdf",
+    1: "제1회_환경영향평가사_필기시험_기출문제_1.pdf",
+    2: "제2회_환경영향평가사_필기시험_기출문제.pdf",
+    3: "제3회_환경영향평가사_필기시험_기출문제.pdf",
+    4: "제4회_환경영향평가사_필기시험_기출문제.pdf",
+    5: "제5회_환경영향평가사_필기시험_기출문제.pdf",
+    6: "제6회_환경영향평가사_필기시험_기출문제.pdf",
+    7: "제7회_환경영향평가사_필기시험_기출문제.pdf",
+    8: "제8회_환경영향평가사_필기시험_기출문제.pdf",
+    9: "제9회_필기시험_문제지.pdf",
     10: "제10회_필기시험_문제지.pdf",
     11: "제11회_필기시험_문제지.pdf",
     12: "제12회_필기시험_문제지.pdf",
@@ -281,20 +281,11 @@ def _extract_score(text):
 
 # ─── 기출문제 파싱 (환경영향평가사) - 최종 버전 ───
 def parse_eias_questions(text):
-    """
-    개선된 파서:
-    - 한 줄에 여러 문제 → 분리 (6.', 7.「 등 비공백 구분자 포함)
-    - 과목명 공백 포함 (환 경 정 책) 처리
-    - 문제 본문 과목명으로 오인식 방지 (헤더 줄만 인식)
-    - [9 ] / [25 ] 형식 배점 처리
-    - '필수문제'로만 시작하는 Q1 처리
-    """
     questions = []
     text = text.replace('\r\n', '\n').replace('\r', '\n')
     lines = text.split('\n')
     cur_subj = ''
 
-    # 1단계: 여러 문제가 한 줄에 있으면 분리
     expanded = []
     for line in lines:
         line = line.strip()
@@ -310,12 +301,10 @@ def parse_eias_questions(text):
         else:
             expanded.append(line)
 
-    # 2단계: 파싱
     i = 0
     while i < len(expanded):
         line = expanded[i].strip()
 
-        # 과목 헤더에서만 과목 변경
         if _is_subj_header(line):
             line_ns = line.replace(' ', '')
             for k, v in _SUBJ_MAP.items():
@@ -323,7 +312,6 @@ def parse_eias_questions(text):
                     cur_subj = v
             i += 1; continue
 
-        # '필수문제'로만 시작하는 Q1 (16회 등)
         if ('필수문제' in line) and not re.match(r'^\d', line) and not re.match(r'^[□(다\s]', line):
             clean = line.strip()
             score = _extract_score(clean)
@@ -344,8 +332,9 @@ def parse_eias_questions(text):
                 questions.append({'text': full, 'subj': cur_subj, 'score': score, 'required': True})
             i += 1; continue
 
-        # 일반 문제: 숫자. 로 시작
-        m = re.match(r'^(\d{1,2})[\.]\s*(.+)', line)
+        m = re.match(r'^(\d{1,2})[\.]\\s*(.+)', line)
+        if not m:
+            m = re.match(r'^(\d{1,2})[\.]\s*(.+)', line)
         if m:
             num = int(m.group(1))
             clean = m.group(2).strip()
@@ -420,6 +409,70 @@ def parse_gosi_questions(text):
     return questions
 
 
+# ─── PDF 렌더링 헬퍼 (Blob URL 방식 - Chrome 호환) ───
+def render_pdf_viewer(pdf_b64, pdf_title):
+    """
+    Chrome에서 data:application/pdf iframe이 차단되는 문제를 
+    JavaScript Blob URL 방식으로 해결합니다.
+    """
+    components.html(
+        f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * {{ margin:0; padding:0; box-sizing:border-box; }}
+  body {{ background:#f5f2eb; font-family:'Noto Sans KR',sans-serif; height:100vh; display:flex; flex-direction:column; }}
+  #header {{
+    background:#2d5a27; color:white;
+    padding:10px 16px; font-weight:600; font-size:14px;
+    flex-shrink:0; display:flex; align-items:center; gap:8px;
+  }}
+  #pdf-frame {{
+    flex:1; width:100%; border:none; background:white;
+    display:block;
+  }}
+  #error-msg {{
+    display:none; padding:40px; text-align:center;
+    color:#8b2020; font-size:14px; line-height:1.8;
+  }}
+</style>
+</head>
+<body>
+<div id="header">📄 {pdf_title}</div>
+<iframe id="pdf-frame"></iframe>
+<div id="error-msg">
+  ⚠️ PDF를 표시할 수 없습니다.<br>
+  브라우저 설정에서 PDF 뷰어를 활성화하거나 다른 브라우저를 사용해 주세요.
+</div>
+<script>
+try {{
+  var b64 = '{pdf_b64}';
+  var binary = atob(b64);
+  var bytes = new Uint8Array(binary.length);
+  for (var i = 0; i < binary.length; i++) {{
+    bytes[i] = binary.charCodeAt(i);
+  }}
+  var blob = new Blob([bytes], {{ type: 'application/pdf' }});
+  var url = URL.createObjectURL(blob);
+  var frame = document.getElementById('pdf-frame');
+  frame.src = url;
+  frame.onerror = function() {{
+    document.getElementById('pdf-frame').style.display = 'none';
+    document.getElementById('error-msg').style.display = 'block';
+  }};
+}} catch(e) {{
+  document.getElementById('pdf-frame').style.display = 'none';
+  document.getElementById('error-msg').style.display = 'block';
+  document.getElementById('error-msg').innerText = 'PDF 로드 오류: ' + e.message;
+}}
+</script>
+</body>
+</html>""",
+        height=700,
+        scrolling=False
+    )
+
 
 # ─── API 스트리밍 생성 ───
 def generate_stream(question, score, detail, exam_type, subject=""):
@@ -447,7 +500,7 @@ def generate_stream(question, score, detail, exam_type, subject=""):
 - {detail_inst}
 
 답안만 출력하세요."""
-    else:  # 5급 기술고시
+    else: # 5급 기술고시
         sys = f"""당신은 5급 공채(기술고시) 환경직 {subject} 모범답안 작성 전문가입니다. 행정고시 환경직 출제위원 수준의 전문성을 보유하고 있습니다.
 
 [답안 형식 - 엄격히 준수]
@@ -497,7 +550,7 @@ defaults = {
     'uploaded_files': {},
     'uploaded_texts': {},
     'view_file_key': None,
-    'auto_saved_answers': {},  # {문제텍스트_키 → 생성된 답안} 자동저장
+    'auto_saved_answers': {},
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -547,7 +600,6 @@ if st.session_state.exam_type == "환경영향평가사":
     with sidebar_col:
         st.markdown("### 📚 회차 선택 (제1~27회)")
 
-        # 회차 그리드 (5열)
         rounds_per_row = 5
         rounds = list(range(1, 28))
         for row_start in range(0, len(rounds), rounds_per_row):
@@ -574,7 +626,6 @@ if st.session_state.exam_type == "환경영향평가사":
 
         st.markdown("")
 
-        # 선택된 회차 처리
         r = st.session_state.eias_round
         if r:
             has_data = r in EIAS_DATA_AVAILABLE
@@ -585,7 +636,6 @@ if st.session_state.exam_type == "환경영향평가사":
             has_proj_pdf = r in EIAS_PDF_AVAILABLE
             file_key = f"eias_{r}"
 
-            # PDF 보기 버튼 (항상 상단에)
             if has_proj_pdf or has_upload:
                 btn_col1, btn_col2 = st.columns(2)
                 with btn_col1:
@@ -599,7 +649,6 @@ if st.session_state.exam_type == "환경영향평가사":
                             st.session_state.view_file_key = file_key
                             st.rerun()
 
-            # 텍스트 데이터 없으면 업로드 유도
             if not has_data and not has_upload:
                 if has_proj_pdf:
                     st.info("위 버튼으로 원본 PDF를 보고, 문제를 직접 입력해 주세요.\n또는 텍스트 파일을 업로드하면 문제 목록이 자동 생성됩니다.")
@@ -619,13 +668,10 @@ if st.session_state.exam_type == "환경영향평가사":
                     st.success("업로드 완료!")
                     st.rerun()
             else:
-
-                # 과목 필터
                 subj_opts = ['전체', '환경정책', '국토계획', '실무', '제도']
                 subj_filter = st.radio("과목", subj_opts, horizontal=True,
                                        key=f"eias_subj_filter_{r}", label_visibility='collapsed')
 
-                # 문제 파싱
                 if has_data:
                     text = EXAM_DATA.get(str(r), '')
                 elif f"eias_{r}" in st.session_state.uploaded_texts:
@@ -643,7 +689,6 @@ if st.session_state.exam_type == "환경영향평가사":
                     score_txt = f"[{q['score']}점]" if q['score'] else ""
                     subj_txt = f"[{q['subj']}] " if q['subj'] else ""
                     preview = q['text'][:50] + ('…' if len(q['text']) > 50 else '')
-                    # 자동저장 답안 있으면 ✅ 표시
                     auto_key = q['text'][:80]
                     has_auto = auto_key in st.session_state.auto_saved_answers
                     label = f"{'✅ ' if has_auto else ''}{req}{subj_txt}{score_txt}\n{preview}"
@@ -652,7 +697,6 @@ if st.session_state.exam_type == "환경영향평가사":
                         st.session_state.q_input_main = q['text']
                         st.session_state.selected_score = q['score'] if q['score'] else '25'
                         st.session_state.selected_subj = q['subj']
-                        # 자동저장된 답안 있으면 바로 불러오기
                         st.session_state.generated_answer = st.session_state.auto_saved_answers.get(auto_key, '')
                         st.rerun()
         else:
@@ -669,9 +713,8 @@ else:
         st.caption("과목과 연도를 각각 선택하세요 · **굵은글씨** = PDF 있음")
 
         subj = st.session_state.gosi_subject
-        yr   = st.session_state.gosi_year
+        yr = st.session_state.gosi_year
 
-        # ── 과목 선택 (항상 표시) ──
         st.markdown("**📌 필수과목**")
         req_cols = st.columns(3)
         for i, s in enumerate(GOSI_SUBJECTS_REQUIRED):
@@ -701,13 +744,11 @@ else:
 
         st.markdown("---")
 
-        # ── 연도 선택 (항상 표시) ──
         st.markdown("**📅 연도 선택**")
         for row_start in range(0, len(GOSI_YEARS), 4):
             cols = st.columns(4)
             for i, y in enumerate(GOSI_YEARS[row_start:row_start+4]):
                 with cols[i]:
-                    # 현재 선택된 과목에 PDF 있으면 굵게, 없으면 일반
                     has_proj = y in GOSI_PDF_MAP.get(subj, {}) if subj else any(
                         y in GOSI_PDF_MAP.get(s, {}) for s in GOSI_ALL_SUBJECTS)
                     label = f"**{y}**" if has_proj else str(y)
@@ -720,9 +761,8 @@ else:
                         st.session_state.generated_answer = ''
                         st.rerun()
 
-        # ── 과목+연도 선택 시 PDF 보기 + 문제 표시 ──
         subj = st.session_state.gosi_subject
-        yr   = st.session_state.gosi_year
+        yr = st.session_state.gosi_year
         if subj and yr:
             file_key = f"gosi_{subj}_{yr}"
             has_proj = yr in GOSI_PDF_MAP.get(subj, {})
@@ -790,10 +830,8 @@ else:
 # ════════════════════════════════════════════
 with main_col:
 
-    # ── 이미지/PDF 뷰어 ──
     vk = st.session_state.view_file_key
 
-    # ── PDF/이미지 팝업 뷰어 ──
     pdf_b64 = None
     pdf_title = ""
     pdf_is_image = False
@@ -831,58 +869,20 @@ with main_col:
             except Exception as e:
                 st.error(f"PDF 로드 실패: {e}")
 
-    # 팝업 오버레이 렌더링
+    # ── PDF/이미지 뷰어 렌더링 ──
     if vk and (pdf_b64 or pdf_is_image):
-        if pdf_is_image:
-            st.image(pdf_img_bytes, caption=pdf_title, use_container_width=True)
-            if st.button("✕ 닫기", key="close_viewer"):
+        close_col, _ = st.columns([1, 5])
+        with close_col:
+            if st.button("✕ PDF 닫기", key="close_viewer", type="secondary"):
                 st.session_state.view_file_key = None
                 st.rerun()
-        else:
-            # 모달 팝업 - 작은 크기 + 바깥 클릭 시 닫기
-            close_col, _ = st.columns([1, 5])
-            with close_col:
-                if st.button("✕ PDF 닫기", key="close_viewer", type="secondary"):
-                    st.session_state.view_file_key = None
-                    st.rerun()
-            close_col, _ = st.columns([1, 5])
-with close_col:
-    if st.button("✕ PDF 닫기", key="close_viewer", type="secondary"):
-        st.session_state.view_file_key = None
-        st.rerun()
 
-# Blob URL 방식으로 PDF 표시 (Chrome 호환)
-components.html(f"""
-<!DOCTYPE html>
-<html>
-<head>
-<style>
-  body {{ margin: 0; padding: 0; }}
-  #header {{
-    background: #2d5a27; color: white;
-    padding: 8px 16px; font-weight: 600; font-size: 14px;
-  }}
-  iframe {{ width: 100%; height: calc(100% - 40px); border: none; display: block; }}
-</style>
-</head>
-<body>
-<div id="header">📄 {pdf_title}</div>
-<iframe id="pdf-frame"></iframe>
-<script>
-  var base64 = '{pdf_b64}';
-  var binary = atob(base64);
-  var len = binary.length;
-  var bytes = new Uint8Array(len);
-  for (var i = 0; i < len; i++) {{ bytes[i] = binary.charCodeAt(i); }}
-  var blob = new Blob([bytes], {{type: 'application/pdf'}});
-  var url = URL.createObjectURL(blob);
-  document.getElementById('pdf-frame').src = url;
-</script>
-</body>
-</html>
-""", height=700, scrolling=False)
-           
-            )
+        if pdf_is_image:
+            st.image(pdf_img_bytes, caption=pdf_title, use_container_width=True)
+        else:
+            # ✅ Blob URL 방식으로 PDF 표시 (Chrome data URI 차단 문제 해결)
+            render_pdf_viewer(pdf_b64, pdf_title)
+
     elif vk:
         st.warning("PDF 파일을 찾을 수 없습니다.")
         if st.button("✕ 닫기", key="close_viewer"):
@@ -934,7 +934,6 @@ components.html(f"""
 
     if save_btn and st.session_state.generated_answer:
         q_short = st.session_state.selected_q[:40] + '…' if len(st.session_state.selected_q) > 40 else st.session_state.selected_q
-        # 중복 저장 방지
         already = any(s['answer'] == st.session_state.generated_answer for s in st.session_state.saved_answers)
         if not already:
             st.session_state.saved_answers.append({
@@ -948,7 +947,6 @@ components.html(f"""
             st.session_state.save_duplicate = True
         st.rerun()
 
-    # 저장 성공/중복 메시지
     if st.session_state.get('save_success'):
         st.success("💾 저장되었습니다! 사이드바 하단에서 확인하세요.")
         st.session_state.save_success = False
@@ -981,8 +979,8 @@ components.html(f"""
 
         st.markdown(f"""
         <div class="answer-meta">
-            <strong>{q_to_gen[:80]}{'…' if len(q_to_gen)>80 else ''}</strong>
-            <span>{exam_label} · {subj_label} · [{final_score}점]</span>
+          <strong>{q_to_gen[:80]}{'…' if len(q_to_gen)>80 else ''}</strong>
+          <span>{exam_label} · {subj_label} · [{final_score}점]</span>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1002,7 +1000,6 @@ components.html(f"""
                 )
 
             st.session_state.generated_answer = full_answer
-            # ── 자동저장 ──
             auto_key = q_to_gen[:80]
             st.session_state.auto_saved_answers[auto_key] = full_answer
             st.session_state.is_generating = False
@@ -1032,8 +1029,8 @@ components.html(f"""
         q_display = st.session_state.selected_q
         st.markdown(f"""
         <div class="answer-meta">
-            <strong>{q_display[:80]}{'…' if len(q_display)>80 else ''}</strong>
-            <span>{exam_label} · {subj_label} · [{final_score}점]</span>
+          <strong>{q_display[:80]}{'…' if len(q_display)>80 else ''}</strong>
+          <span>{exam_label} · {subj_label} · [{final_score}점]</span>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1042,14 +1039,12 @@ components.html(f"""
             st.markdown(f'<div class="answer-box">{st.session_state.generated_answer}</div>',
                         unsafe_allow_html=True)
             chars = len(st.session_state.generated_answer)
-            auto_key = st.session_state.selected_q[:80]
             st.caption(f"📊 총 {chars:,}자 · 예상 {chars//500+1}페이지 · 🔄 자동저장됨")
         with tab_edit:
             edited = st.text_area("편집", value=st.session_state.generated_answer,
                                   height=600, label_visibility='collapsed', key="edit_answer")
             if edited != st.session_state.generated_answer:
                 st.session_state.generated_answer = edited
-                # 편집 내용도 자동저장
                 auto_key = st.session_state.selected_q[:80]
                 st.session_state.auto_saved_answers[auto_key] = edited
             if st.button("🔄 재생성", use_container_width=True):
@@ -1061,17 +1056,16 @@ components.html(f"""
     else:
         st.markdown("""
         <div class="empty-state">
-            <div class="icon">📝</div>
-            <h3>모범답안이 여기에 표시됩니다</h3>
-            <p>왼쪽에서 회차(연도)를 선택하고 문제를 클릭하거나,<br>
-            문제를 직접 입력한 후 「모범답안 생성」을 클릭하세요.</p>
+          <div class="icon">📝</div>
+          <h3>모범답안이 여기에 표시됩니다</h3>
+          <p>왼쪽에서 회차(연도)를 선택하고 문제를 클릭하거나,<br>
+          문제를 직접 입력한 후 「모범답안 생성」을 클릭하세요.</p>
         </div>
         """, unsafe_allow_html=True)
 
 
 # ─── 저장된 답안 (사이드바 하단) ───
 with st.sidebar:
-    # 자동저장 현황
     auto_count = len(st.session_state.auto_saved_answers)
     if auto_count > 0:
         st.markdown("---")
@@ -1086,8 +1080,7 @@ with st.sidebar:
         st.markdown("---")
         saved_count = len(st.session_state.saved_answers)
         st.markdown(f"### 💾 저장된 답안 ({saved_count}개)")
-        
-        # 전체 삭제
+
         if st.button("🗑 전체 삭제", key="del_all_saved", use_container_width=True):
             st.session_state.saved_answers = []
             st.rerun()
@@ -1116,7 +1109,7 @@ with st.sidebar:
 # ─── 푸터 ───
 st.markdown(
     "<div style='text-align:center;font-size:11px;color:#6b6657;padding:20px 0 10px'>"
-    "🌿 환경직 시험 모범답안 생성기 v5.0 · Powered by Claude AI"
+    "🌿 환경직 시험 모범답안 생성기 v5.1 · Powered by Claude AI"
     "</div>",
     unsafe_allow_html=True
 )
