@@ -279,130 +279,61 @@ def parse_gosi_questions(text):
     return questions
 
 
-# ─── PDF 뷰어 팝업 ───
-# PDF.js를 사용해 Canvas에 직접 렌더링 → 브라우저 PDF 플러그인/iframe 샌드박스 차단 완전 우회
-@st.dialog("📄 PDF 뷰어", width="large")
-def show_pdf_dialog(pdf_b64: str, pdf_title: str):
-    st.caption(f"**{pdf_title}**  ·  페이지 이동 및 확대/축소 지원")
-    components.html(
-        f"""<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<style>
-  * {{ margin:0; padding:0; box-sizing:border-box; }}
-  body {{ background:#525659; font-family:'Noto Sans KR',sans-serif; }}
-  #toolbar {{
-    position:sticky; top:0; z-index:10;
-    background:#2d5a27; color:white;
-    padding:8px 14px;
-    display:flex; align-items:center; justify-content:space-between;
-    font-size:13px; font-weight:600;
-    box-shadow:0 2px 6px rgba(0,0,0,0.35);
-  }}
-  .ctrl {{ display:flex; align-items:center; gap:8px; }}
-  .ctrl button {{
-    background:rgba(255,255,255,0.18); color:white;
-    border:1px solid rgba(255,255,255,0.4);
-    border-radius:4px; padding:3px 11px; cursor:pointer; font-size:13px;
-  }}
-  .ctrl button:hover {{ background:rgba(255,255,255,0.32); }}
-  .ctrl button:disabled {{ opacity:0.35; cursor:default; }}
-  select {{
-    background:rgba(255,255,255,0.15); color:white;
-    border:1px solid rgba(255,255,255,0.4);
-    border-radius:4px; padding:3px 7px; font-size:12px; cursor:pointer;
-  }}
-  #page-info {{ font-size:12px; opacity:0.85; }}
-  #pdf-wrap {{
-    display:flex; flex-direction:column; align-items:center;
-    padding:14px 8px 20px; gap:10px;
-  }}
-  canvas {{
-    display:block; max-width:100%;
-    box-shadow:0 2px 10px rgba(0,0,0,0.45);
-  }}
-  #loading {{ color:#ccc; padding:60px 20px; text-align:center; font-size:15px; }}
-</style>
-</head>
-<body>
-<div id="toolbar">
-  <span id="title-txt" style="max-width:55%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-    📄 {pdf_title}
-  </span>
-  <div class="ctrl">
-    <button id="btn-prev" disabled>◀</button>
-    <span id="page-info">로딩중...</span>
-    <button id="btn-next" disabled>▶</button>
-    <select id="zoom-sel">
-      <option value="1.0">100%</option>
-      <option value="1.3">130%</option>
-      <option value="1.5" selected>150%</option>
-      <option value="1.8">180%</option>
-      <option value="2.0">200%</option>
-    </select>
-  </div>
-</div>
-<div id="pdf-wrap">
-  <div id="loading">⏳ PDF 로딩 중...</div>
-</div>
-<script>
-pdfjsLib.GlobalWorkerOptions.workerSrc =
-  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+# ─── 시험지 이미지 뷰어 (ZIP에서 직접 추출) ───
+def load_zip_images(filepath, page=None):
+    """ZIP 파일에서 페이지 이미지(JPEG)를 base64로 추출. page 지정 시 해당 페이지만."""
+    import zipfile, json as _json, base64 as _b64
+    images = []
+    with zipfile.ZipFile(filepath) as z:
+        try:
+            manifest = _json.loads(z.read('manifest.json'))
+            pages = sorted(manifest['pages'], key=lambda p: p['page_number'])
+            if page is not None:
+                pages = [p for p in pages if p['page_number'] == page]
+            for p in pages:
+                img_b64 = _b64.b64encode(z.read(p['image']['path'])).decode()
+                images.append(img_b64)
+        except Exception:
+            jpegs = sorted([n for n in z.namelist() if n.endswith('.jpeg') or n.endswith('.jpg')],
+                           key=lambda x: int(re.sub(r'\D','',x) or '0'))
+            if page is not None and page <= len(jpegs):
+                jpegs = [jpegs[page-1]]
+            for jp in jpegs:
+                images.append(_b64.b64encode(z.read(jp)).decode())
+    return images
 
-var pdfDoc = null, curPage = 1, scale = 1.5;
-var wrap = document.getElementById('pdf-wrap');
-var info = document.getElementById('page-info');
-var btnP = document.getElementById('btn-prev');
-var btnN = document.getElementById('btn-next');
-var zsel = document.getElementById('zoom-sel');
-var canvas = document.createElement('canvas');
-
-// base64 → Uint8Array
-var b64 = `{pdf_b64}`;
-var bin = atob(b64);
-var arr = new Uint8Array(bin.length);
-for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-
-function renderPage(n) {{
-  pdfDoc.getPage(n).then(function(page) {{
-    var vp = page.getViewport({{ scale: scale }});
-    canvas.width = vp.width;
-    canvas.height = vp.height;
-    page.render({{ canvasContext: canvas.getContext('2d'), viewport: vp }}).promise.then(function() {{
-      info.textContent = n + ' / ' + pdfDoc.numPages + '페이지';
-      btnP.disabled = n <= 1;
-      btnN.disabled = n >= pdfDoc.numPages;
-    }});
-  }});
-}}
-
-pdfjsLib.getDocument({{ data: arr }}).promise.then(function(pdf) {{
-  pdfDoc = pdf;
-  wrap.innerHTML = '';
-  wrap.appendChild(canvas);
-  renderPage(1);
-}}).catch(function(e) {{
-  wrap.innerHTML = '<div style="color:#ff9a9a;padding:30px;text-align:center;font-size:14px;line-height:2">' +
-    '⚠️ PDF 렌더링 오류<br><small>' + e.message + '</small></div>';
-}});
-
-btnP.onclick = function() {{ if (curPage > 1) renderPage(--curPage); }};
-btnN.onclick = function() {{ if (pdfDoc && curPage < pdfDoc.numPages) renderPage(++curPage); }};
-zsel.onchange = function() {{ scale = parseFloat(zsel.value); if (pdfDoc) renderPage(curPage); }};
-</script>
-</body>
-</html>""",
-        height=720,
-        scrolling=True,
-    )
+@st.dialog("🖼️ 시험지 보기", width="large")
+def show_images_dialog(images_b64: list, title: str):
+    st.caption(f"**{title}**  ·  총 {len(images_b64)}페이지")
+    if 'img_page' not in st.session_state:
+        st.session_state.img_page = 0
+    pg = st.session_state.img_page
+    if pg >= len(images_b64):
+        pg = 0
+    # 페이지 이동 버튼
+    col1, col2, col3 = st.columns([1, 3, 1])
+    with col1:
+        if st.button("◀ 이전", disabled=(pg == 0), use_container_width=True):
+            st.session_state.img_page = pg - 1
+            st.rerun()
+    with col2:
+        st.markdown(f"<p style='text-align:center;margin:6px 0;font-size:13px;color:#666'>{pg+1} / {len(images_b64)} 페이지</p>", unsafe_allow_html=True)
+    with col3:
+        if st.button("다음 ▶", disabled=(pg >= len(images_b64)-1), use_container_width=True):
+            st.session_state.img_page = pg + 1
+            st.rerun()
+    # 이미지 표시
+    import base64 as _b64
+    img_data = _b64.b64decode(images_b64[pg])
+    st.image(img_data, use_container_width=True)
     if st.button("✕ 닫기", use_container_width=True, type="secondary"):
         st.session_state.view_file_key = None
+        st.session_state.img_page = 0
         st.rerun()
 
 
 # ─── API 스트리밍 생성 ───
+
 def generate_stream(question, score, detail, exam_type, subject=""):
     client = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
     is_short = score.isdigit() and int(score) <= 15
@@ -459,6 +390,9 @@ defaults = {
     'uploaded_files': {},
     'uploaded_texts': {},
     'view_file_key': None,
+    'current_exam_file': '',
+    'current_exam_page': 1,
+    'preview_page': 0,
     'auto_saved_answers': {},
 }
 for k, v in defaults.items():
@@ -481,10 +415,10 @@ st.markdown("""
 # ─── PDF 팝업 트리거 (페이지 최상단에서 처리) ───
 vk = st.session_state.view_file_key
 if vk:
-    pdf_b64 = None
     pdf_title = ""
     is_image = False
     img_bytes = None
+    fname = ""
 
     if vk in st.session_state.uploaded_files:
         fd = st.session_state.uploaded_files[vk]
@@ -513,14 +447,12 @@ if vk:
             pdf_title = f"{g_yr}년 5급 공채 {g_subj}"
         if fname:
             try:
-                with open(f"{PDF_BASE}/{fname}", 'rb') as f:
-                    pdf_b64 = base64.b64encode(f.read()).decode()
+                zip_images = load_zip_images(f"{PDF_BASE}/{fname}")
+                show_images_dialog(zip_images, pdf_title)
             except Exception as e:
-                st.error(f"PDF 파일 로드 실패: {e}")
+                st.error(f"파일 로드 실패: {e}")
                 st.session_state.view_file_key = None
 
-    if pdf_b64:
-        show_pdf_dialog(pdf_b64, pdf_title)
     elif is_image and img_bytes:
         @st.dialog("🖼️ 이미지 뷰어", width="large")
         def _show_img():
@@ -651,6 +583,9 @@ if st.session_state.exam_type == "환경영향평가사":
                         st.session_state.selected_subj = q['subj']
                         st.session_state.generated_answer = st.session_state.auto_saved_answers.get(auto_key, '')
                         st.session_state.view_file_key = None
+                        st.session_state.current_exam_file = f"eias_{r}"
+                        st.session_state.current_exam_page = q.get('page', 1)
+                        st.session_state.preview_page = q.get('page', 1) - 1
                         st.rerun()
         else:
             st.info("회차를 선택하면 기출문제 목록이 표시됩니다.")
@@ -751,11 +686,23 @@ else:
                     has_auto = auto_key in st.session_state.auto_saved_answers
                     lbl = f"{'✅ ' if has_auto else ''}{score_txt}\n{preview}"
                     if st.button(lbl, key=f"gosi_q_{subj}_{yr}_{idx}", use_container_width=True):
-                        st.session_state.selected_q = q['text']
-                        st.session_state.q_input_main = q['text']
+                        # 소문제 포함한 전체 문제 텍스트 생성
+                        sub_qs = q.get('sub_questions', [])
+                        full_q_text = q['text']
+                        if sub_qs:
+                            sub_lines = []
+                            for sq in sub_qs:
+                                sc = f" ({sq['score']}점)" if sq['score'] else ""
+                                sub_lines.append(f"  {sq['num']}){sc} {sq['text']}")
+                            full_q_text = q['text'] + '\n' + '\n'.join(sub_lines)
+                        st.session_state.selected_q = full_q_text
+                        st.session_state.q_input_main = full_q_text
                         st.session_state.selected_score = q['score'] if q['score'] else '25'
                         st.session_state.generated_answer = st.session_state.auto_saved_answers.get(auto_key, '')
                         st.session_state.view_file_key = None
+                        st.session_state.current_exam_file = f"gosi_{subj}_{yr}"
+                        st.session_state.current_exam_page = q.get('page', 1)
+                        st.session_state.preview_page = q.get('page', 1) - 1
                         st.rerun()
             elif has_proj:
                 st.info("📖 위 PDF 보기 버튼으로 문제를 확인하고 직접 입력해 주세요.")
@@ -828,6 +775,53 @@ with main_col:
             st.session_state.generated_answer = ''
             st.session_state.view_file_key = None
             st.rerun()
+
+    # ─── 시험지 원본 이미지 (선택된 문제 해당 페이지) ───
+    exam_file_key = st.session_state.get('current_exam_file', '')
+    selected_page = st.session_state.get('current_exam_page', None)
+    if exam_file_key:
+        with st.expander("🖼️ 시험지 원본 보기", expanded=bool(st.session_state.get('selected_q', ''))):
+            try:
+                import base64 as _b64
+                parts = exam_file_key.split('_', 1)
+                kind = parts[0]
+                if kind == 'eias':
+                    rn = int(parts[1])
+                    fname = EIAS_PDF_MAP.get(rn, '')
+                else:
+                    rest = parts[1]
+                    lu = rest.rfind('_')
+                    g_subj, g_yr = rest[:lu], int(rest[lu+1:])
+                    fname = GOSI_PDF_MAP.get(g_subj, {}).get(g_yr, '')
+                if fname:
+                    # 전체 페이지 수 확인
+                    import zipfile, json as _jj
+                    with zipfile.ZipFile(f"{PDF_BASE}/{fname}") as _z:
+                        total_pages = _jj.loads(_z.read('manifest.json'))['num_pages']
+                    # 페이지 선택 UI
+                    if total_pages > 1:
+                        pp = st.session_state.get('preview_page', 0)
+                        if selected_page and pp == 0:
+                            pp = selected_page - 1
+                        if pp >= total_pages: pp = 0
+                        pc1, pc2, pc3 = st.columns([1, 3, 1])
+                        with pc1:
+                            if st.button("◀ 이전", key="prev_pg", disabled=(pp==0), use_container_width=True):
+                                st.session_state.preview_page = pp - 1
+                                st.rerun()
+                        with pc2:
+                            st.markdown(f"<p style='text-align:center;font-size:12px;color:#888;margin:6px 0'>{pp+1} / {total_pages} 페이지</p>", unsafe_allow_html=True)
+                        with pc3:
+                            if st.button("다음 ▶", key="next_pg", disabled=(pp>=total_pages-1), use_container_width=True):
+                                st.session_state.preview_page = pp + 1
+                                st.rerun()
+                    else:
+                        pp = 0
+                    imgs = load_zip_images(f"{PDF_BASE}/{fname}", page=pp+1)
+                    if imgs:
+                        st.image(_b64.b64decode(imgs[0]), use_container_width=True)
+            except Exception as _e:
+                st.caption(f"시험지 이미지를 불러올 수 없습니다.")
 
     st.markdown("---")
     st.markdown("### 📝 모범답안")
