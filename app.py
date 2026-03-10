@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import anthropic
 import re
 import base64
@@ -844,41 +845,43 @@ with main_col:
                 if st.button("✕ PDF 닫기", key="close_viewer", type="secondary"):
                     st.session_state.view_file_key = None
                     st.rerun()
-            st.markdown(
-                f"""
-                <div id="pdf-overlay" onclick="if(event.target===this){{document.getElementById('pdf-close-btn').click()}}"
-                  style="
-                    position:fixed; top:0; left:0; width:100vw; height:100vh;
-                    background:rgba(0,0,0,0.55); z-index:9999;
-                    display:flex; align-items:center; justify-content:center;
-                  ">
-                  <div style="
-                    background:#fff; border-radius:12px;
-                    width:70vw; height:80vh; max-width:960px;
-                    display:flex; flex-direction:column;
-                    box-shadow:0 8px 40px rgba(0,0,0,0.4);
-                    overflow:hidden;
-                  ">
-                    <div style="
-                      padding:10px 16px; background:#2d5a27; color:#fff;
-                      font-weight:600; font-size:14px;
-                      display:flex; justify-content:space-between; align-items:center;
-                      flex-shrink:0;
-                    ">
-                      <span>📄 {pdf_title}</span>
-                      <span id="pdf-close-btn" onclick="
-                        var btns = window.parent.document.querySelectorAll('button');
-                        for(var b of btns){{if(b.innerText.includes('PDF 닫기')){{b.click();break;}}}}
-                      " style="cursor:pointer; font-size:18px; line-height:1; opacity:0.8;">✕</span>
-                    </div>
-                    <iframe
-                      src="data:application/pdf;base64,{pdf_b64}"
-                      style="flex:1; border:none; width:100%;"
-                    ></iframe>
-                  </div>
-                </div>
-                """,
-                unsafe_allow_html=True
+            close_col, _ = st.columns([1, 5])
+with close_col:
+    if st.button("✕ PDF 닫기", key="close_viewer", type="secondary"):
+        st.session_state.view_file_key = None
+        st.rerun()
+
+# Blob URL 방식으로 PDF 표시 (Chrome 호환)
+components.html(f"""
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  body {{ margin: 0; padding: 0; }}
+  #header {{
+    background: #2d5a27; color: white;
+    padding: 8px 16px; font-weight: 600; font-size: 14px;
+  }}
+  iframe {{ width: 100%; height: calc(100% - 40px); border: none; display: block; }}
+</style>
+</head>
+<body>
+<div id="header">📄 {pdf_title}</div>
+<iframe id="pdf-frame"></iframe>
+<script>
+  var base64 = '{pdf_b64}';
+  var binary = atob(base64);
+  var len = binary.length;
+  var bytes = new Uint8Array(len);
+  for (var i = 0; i < len; i++) {{ bytes[i] = binary.charCodeAt(i); }}
+  var blob = new Blob([bytes], {{type: 'application/pdf'}});
+  var url = URL.createObjectURL(blob);
+  document.getElementById('pdf-frame').src = url;
+</script>
+</body>
+</html>
+""", height=700, scrolling=False)
+           
             )
     elif vk:
         st.warning("PDF 파일을 찾을 수 없습니다.")
