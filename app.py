@@ -838,7 +838,7 @@ with main_col:
                 st.session_state.view_file_key = None
                 st.rerun()
         else:
-            # 모달 팝업 스타일
+            # 모달 팝업 - 작은 크기 + 바깥 클릭 시 닫기
             close_col, _ = st.columns([1, 5])
             with close_col:
                 if st.button("✕ PDF 닫기", key="close_viewer", type="secondary"):
@@ -846,24 +846,30 @@ with main_col:
                     st.rerun()
             st.markdown(
                 f"""
-                <div style="
+                <div id="pdf-overlay" onclick="if(event.target===this){{document.getElementById('pdf-close-btn').click()}}"
+                  style="
                     position:fixed; top:0; left:0; width:100vw; height:100vh;
-                    background:rgba(0,0,0,0.6); z-index:9999;
+                    background:rgba(0,0,0,0.55); z-index:9999;
                     display:flex; align-items:center; justify-content:center;
-                ">
+                  ">
                   <div style="
                     background:#fff; border-radius:12px;
-                    width:88vw; height:90vh;
+                    width:70vw; height:80vh; max-width:960px;
                     display:flex; flex-direction:column;
                     box-shadow:0 8px 40px rgba(0,0,0,0.4);
                     overflow:hidden;
                   ">
                     <div style="
-                      padding:12px 20px; background:#2d5a27; color:#fff;
-                      font-weight:600; font-size:15px;
+                      padding:10px 16px; background:#2d5a27; color:#fff;
+                      font-weight:600; font-size:14px;
                       display:flex; justify-content:space-between; align-items:center;
+                      flex-shrink:0;
                     ">
                       <span>📄 {pdf_title}</span>
+                      <span id="pdf-close-btn" onclick="
+                        var btns = window.parent.document.querySelectorAll('button');
+                        for(var b of btns){{if(b.innerText.includes('PDF 닫기')){{b.click();break;}}}}
+                      " style="cursor:pointer; font-size:18px; line-height:1; opacity:0.8;">✕</span>
                     </div>
                     <iframe
                       src="data:application/pdf;base64,{pdf_b64}"
