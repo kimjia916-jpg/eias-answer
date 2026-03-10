@@ -4,7 +4,7 @@ import re
 import base64
 import io
 import streamlit.components.v1 as components
-from exam_data import EXAM_DATA
+from exam_data import EXAM_DATA, GOSI_DATA
 
 # ─── 페이지 설정 ───
 st.set_page_config(
@@ -737,19 +737,12 @@ else:
                     st.success("업로드 완료!")
                     st.session_state.view_file_key = None
                     st.rerun()
-            elif has_proj and file_key not in st.session_state.uploaded_texts:
-                # 프로젝트 PDF(ZIP)에서 자동으로 텍스트 추출
-                fname = GOSI_PDF_MAP.get(subj, {}).get(yr, "")
-                if fname:
-                    try:
-                        auto_text = extract_zip_text(f"{PDF_BASE}/{fname}")
-                        st.session_state.uploaded_texts[file_key] = auto_text
-                        st.rerun()
-                    except Exception:
-                        st.info("📖 위 PDF 보기 버튼으로 문제를 확인하고 직접 입력해 주세요.")
-            elif file_key in st.session_state.uploaded_texts:
-                text = st.session_state.uploaded_texts[file_key]
-                qs = parse_gosi_questions(text)
+            # GOSI_DATA(사전 파싱)에서 문제 로드, 사용자 업로드 txt가 있으면 우선 사용
+            if file_key in st.session_state.uploaded_texts:
+                qs = parse_gosi_questions(st.session_state.uploaded_texts[file_key])
+            else:
+                qs = [dict(q) for q in GOSI_DATA.get(subj, {}).get(str(yr), [])]
+            if qs:
                 st.caption(f"총 {len(qs)}문제")
                 for idx, q in enumerate(qs):
                     score_txt = f"[{q['score']}점]" if q['score'] else ""
@@ -764,9 +757,8 @@ else:
                         st.session_state.generated_answer = st.session_state.auto_saved_answers.get(auto_key, '')
                         st.session_state.view_file_key = None
                         st.rerun()
-            else:
-                if has_proj:
-                    st.info("📖 위 PDF 보기 버튼으로 문제를 확인하고 직접 입력해 주세요.")
+            elif has_proj:
+                st.info("📖 위 PDF 보기 버튼으로 문제를 확인하고 직접 입력해 주세요.")
         elif subj and not yr:
             st.markdown("---"); st.info("연도를 선택하세요.")
         elif yr and not subj:
