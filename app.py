@@ -138,37 +138,120 @@ GOSI_SUBJECTS_ELECTIVE = ["소음진동학", "폐기물처리", "환경미생물
 GOSI_ALL_SUBJECTS = GOSI_SUBJECTS_REQUIRED + GOSI_SUBJECTS_ELECTIVE
 
 
-# ─── 기출문제 파싱 (환경영향평가사) ───
+# ─── 기출문제 파싱 헬퍼 ───
+_SUBJ_MAP = {'환경정책': '환경정책', '국토환경계획': '국토계획', '환경영향평가실무': '실무', '환경영향평가제도': '제도'}
+
+def _is_subj_header(line):
+    line_ns = line.replace(' ', '')
+    if '수험번호' in line or line_ns.startswith('과목'):
+        return True
+    for k in _SUBJ_MAP:
+        if line_ns == k.replace(' ','') or line_ns == f'과목{k.replace(" ","")}':
+            return True
+    return False
+
+def _extract_score(text):
+    m = re.search(r'\[(\d+)점\]', text)
+    if m: return m.group(1)
+    m = re.search(r'\[(\d+)\s+\]', text)
+    if m: return m.group(1)
+    return ''
+
+
+# ─── 기출문제 파싱 (환경영향평가사) - 최종 버전 ───
 def parse_eias_questions(text):
+    """
+    개선된 파서:
+    - 한 줄에 여러 문제 → 분리 (6.', 7.「 등 비공백 구분자 포함)
+    - 과목명 공백 포함 (환 경 정 책) 처리
+    - 문제 본문 과목명으로 오인식 방지 (헤더 줄만 인식)
+    - [9 ] / [25 ] 형식 배점 처리
+    - '필수문제'로만 시작하는 Q1 처리
+    """
     questions = []
-    lines = text.replace('\r\n', '\n').replace('\r', '\n').split('\n')
-    subj_map = {'환경정책': '환경정책', '국토환경계획': '국토계획', '환경영향평가실무': '실무', '환경영향평가제도': '제도'}
+    text = text.replace('\r\n', '\n').replace('\r', '\n')
+    lines = text.split('\n')
     cur_subj = ''
-    for i, line in enumerate(lines):
+
+    # 1단계: 여러 문제가 한 줄에 있으면 분리
+    expanded = []
+    for line in lines:
         line = line.strip()
-        for k, v in subj_map.items():
-            if k in line: cur_subj = v
-        if re.match(r'^\d+[\.\s]', line) and not re.match(r'^\d+\)', line) and len(line) > 8:
-            clean = re.sub(r'^\d+[\.\s]+', '', line).strip()
-            if len(clean) < 5: continue
-            is_req = '[필수문제]' in clean or '필수지정문제' in clean
-            score = ''
-            m = re.search(r'\[(\d+)점\]', clean)
-            if m: score = m.group(1)
+        if not line:
+            expanded.append(''); continue
+        if _is_subj_header(line):
+            expanded.append(line); continue
+        parts = re.split(r'(?<!\d)(?=\b\d{1,2}\.[^\d])', line)
+        if len(parts) > 1:
+            for p in parts:
+                p = p.strip()
+                if p: expanded.append(p)
+        else:
+            expanded.append(line)
+
+    # 2단계: 파싱
+    i = 0
+    while i < len(expanded):
+        line = expanded[i].strip()
+
+        # 과목 헤더에서만 과목 변경
+        if _is_subj_header(line):
+            line_ns = line.replace(' ', '')
+            for k, v in _SUBJ_MAP.items():
+                if k.replace(' ','') in line_ns:
+                    cur_subj = v
+            i += 1; continue
+
+        # '필수문제'로만 시작하는 Q1 (16회 등)
+        if ('필수문제' in line) and not re.match(r'^\d', line) and not re.match(r'^[□(다\s]', line):
+            clean = line.strip()
+            score = _extract_score(clean)
+            if not score:
+                for j2 in range(i+1, min(i+4, len(expanded))):
+                    score = _extract_score(expanded[j2])
+                    if score: break
             extra = ''
             j = i + 1
-            while j < len(lines):
-                nl = lines[j].strip()
-                if nl.startswith('-') or nl.startswith('·') or nl.startswith('•'):
-                    extra += '\n' + nl; j += 1
-                else: break
+            while j < len(expanded):
+                nl = expanded[j].strip()
+                if not nl or re.match(r'^\d{1,2}\.[^\d]', nl) or _is_subj_header(nl): break
+                if '□' in nl or '다음 중' in nl: break
+                if nl.startswith(('-','·','•','∙','―')): extra += '\n' + nl
+                j += 1
+            full = (clean + extra).strip()
+            if len(full) >= 5:
+                questions.append({'text': full, 'subj': cur_subj, 'score': score, 'required': True})
+            i += 1; continue
+
+        # 일반 문제: 숫자. 로 시작
+        m = re.match(r'^(\d{1,2})[\.]\s*(.+)', line)
+        if m:
+            num = int(m.group(1))
+            clean = m.group(2).strip()
+            if num < 1 or num > 20 or len(clean) < 2:
+                i += 1; continue
+
+            is_req = '필수문제' in clean
+            score = _extract_score(clean)
             if not score:
-                for k2 in range(i+1, min(i+4, len(lines))):
-                    nm = re.search(r'\[(\d+)점\]', lines[k2])
-                    if nm: score = nm.group(1); break
-            full = clean + extra
-            if len(full) > 5:
+                for j2 in range(i+1, min(i+6, len(expanded))):
+                    score = _extract_score(expanded[j2])
+                    if score: break
+
+            extra = ''
+            j = i + 1
+            while j < len(expanded):
+                nl = expanded[j].strip()
+                if not nl or re.match(r'^\d{1,2}\.[^\d]', nl) or _is_subj_header(nl): break
+                if '□' in nl or '다음 중' in nl: break
+                if nl.startswith(('-','·','•','∙','―')): extra += '\n' + nl
+                j += 1
+
+            full = (clean + extra).strip()
+            if len(full) >= 5:
                 questions.append({'text': full, 'subj': cur_subj, 'score': score, 'required': is_req})
+        i += 1
+
     return questions
 
 
@@ -176,25 +259,45 @@ def parse_eias_questions(text):
 def parse_gosi_questions(text):
     questions = []
     lines = text.replace('\r\n', '\n').split('\n')
-    for i, line in enumerate(lines):
+    expanded = []
+    for line in lines:
         line = line.strip()
-        if re.match(r'^\d+[\.\s]', line) and not re.match(r'^\d+\)', line) and len(line) > 8:
-            clean = re.sub(r'^\d+[\.\s]+', '', line).strip()
-            if len(clean) < 5: continue
-            score = ''
-            m = re.search(r'\[(\d+)점\]', clean)
-            if m: score = m.group(1)
-            extra = ''
-            j = i + 1
-            while j < len(lines):
-                nl = lines[j].strip()
-                if nl.startswith('-') or nl.startswith('·') or nl.startswith('•'):
-                    extra += '\n' + nl; j += 1
-                else: break
-            full = clean + extra
-            if len(full) > 5:
-                questions.append({'text': full, 'score': score})
+        if not line:
+            expanded.append(''); continue
+        parts = re.split(r'(?<!\d)(?=\b\d{1,2}\.[^\d])', line)
+        if len(parts) > 1:
+            for p in parts:
+                p = p.strip()
+                if p: expanded.append(p)
+        else:
+            expanded.append(line)
+
+    i = 0
+    while i < len(expanded):
+        line = expanded[i].strip()
+        m = re.match(r'^(\d{1,2})[\.]\s*(.+)', line)
+        if m:
+            num = int(m.group(1))
+            clean = m.group(2).strip()
+            if 1 <= num <= 20 and len(clean) >= 3:
+                score = _extract_score(clean)
+                if not score:
+                    for j2 in range(i+1, min(i+6, len(expanded))):
+                        score = _extract_score(expanded[j2])
+                        if score: break
+                extra = ''
+                j = i + 1
+                while j < len(expanded):
+                    nl = expanded[j].strip()
+                    if not nl or re.match(r'^\d{1,2}\.[^\d]', nl): break
+                    if nl.startswith(('-','·','•','∙')): extra += '\n' + nl
+                    j += 1
+                full = (clean + extra).strip()
+                if len(full) >= 3:
+                    questions.append({'text': full, 'score': score})
+        i += 1
     return questions
+
 
 
 # ─── API 스트리밍 생성 ───
@@ -379,11 +482,19 @@ if st.session_state.exam_type == "환경영향평가사":
                     st.success("업로드 완료!")
                     st.rerun()
             else:
-                # 원본 보기 버튼
+                # 원본 PDF 보기 버튼
                 file_key = f"eias_{r}"
-                if has_upload and st.session_state.uploaded_files[file_key]['type'] != 'text/plain':
-                    if st.button("🖼 원본 문제 보기", key=f"view_eias_{r}", use_container_width=True):
-                        st.session_state.view_file_key = file_key
+                btn_col1, btn_col2 = st.columns(2)
+                with btn_col1:
+                    # 업로드된 파일 보기
+                    if has_upload and st.session_state.uploaded_files[file_key]['type'] != 'text/plain':
+                        if st.button("📄 업로드 PDF 보기", key=f"view_eias_up_{r}", use_container_width=True):
+                            st.session_state.view_file_key = file_key
+                            st.rerun()
+                with btn_col2:
+                    # 프로젝트 내장 PDF 보기 (항상 표시)
+                    if st.button("📖 원본 PDF 보기", key=f"view_eias_proj_{r}", use_container_width=True):
+                        st.session_state.view_file_key = f"proj_pdf_{r}"
                         st.rerun()
 
                 # 과목 필터
@@ -554,6 +665,8 @@ with main_col:
 
     # ── 이미지/PDF 뷰어 ──
     vk = st.session_state.view_file_key
+    
+    # 업로드 파일 뷰어
     if vk and vk in st.session_state.uploaded_files:
         fdata = st.session_state.uploaded_files[vk]
         col_vh, col_vc = st.columns([6, 1])
@@ -571,15 +684,48 @@ with main_col:
         if ftype == "application/pdf":
             st.markdown(
                 f'<iframe src="data:application/pdf;base64,{b64}" '
-                f'width="100%" height="700px" style="border:1px solid #d4cfc2;border-radius:8px"></iframe>',
+                f'width="100%" height="750px" style="border:1px solid #d4cfc2;border-radius:8px"></iframe>',
                 unsafe_allow_html=True
             )
         elif ftype in ["image/png", "image/jpeg", "image/jpg"]:
+            st.image(fbytes, use_container_width=True)
+        st.markdown("---")
+
+    # 프로젝트 PDF 뷰어 (환경영향평가사 내장 PDF)
+    elif vk and vk.startswith("proj_pdf_"):
+        import os, glob
+        round_num = vk.replace("proj_pdf_", "")
+        # 프로젝트 폴더에서 해당 회차 PDF 찾기
+        pdf_patterns = [
+            f"/mnt/project/*{round_num}회*.pdf",
+            f"/mnt/project/*제{round_num}회*.pdf",
+        ]
+        found_pdf = None
+        for pat in pdf_patterns:
+            matches = glob.glob(pat)
+            if matches:
+                found_pdf = matches[0]
+                break
+
+        col_vh, col_vc = st.columns([6, 1])
+        with col_vh:
+            st.markdown(f"**📄 제{round_num}회 원본 문제지**")
+        with col_vc:
+            if st.button("✕ 닫기", key="close_viewer"):
+                st.session_state.view_file_key = None
+                st.rerun()
+
+        if found_pdf:
+            with open(found_pdf, 'rb') as f:
+                pdf_bytes = f.read()
+            b64 = base64.b64encode(pdf_bytes).decode()
             st.markdown(
-                f'<div class="img-viewer"><img src="data:{ftype};base64,{b64}" '
-                f'style="width:100%;display:block;" /></div>',
+                f'<iframe src="data:application/pdf;base64,{b64}" '
+                f'width="100%" height="750px" style="border:1px solid #d4cfc2;border-radius:8px"></iframe>',
                 unsafe_allow_html=True
             )
+        else:
+            st.warning(f"제{round_num}회 PDF 파일을 찾을 수 없습니다. 업로드 기능을 이용해주세요.")
         st.markdown("---")
 
     # ── 문제 입력 + 생성 ──
