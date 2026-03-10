@@ -791,74 +791,94 @@ with main_col:
 
     # ── 이미지/PDF 뷰어 ──
     vk = st.session_state.view_file_key
-    
-    # 업로드 파일 뷰어
+
+    # ── PDF/이미지 팝업 뷰어 ──
+    pdf_b64 = None
+    pdf_title = ""
+    pdf_is_image = False
+    pdf_img_bytes = None
+
     if vk and vk in st.session_state.uploaded_files:
         fdata = st.session_state.uploaded_files[vk]
-        col_vh, col_vc = st.columns([6, 1])
-        with col_vh:
-            st.markdown(f"**📄 원본 문제: {fdata['name']}**")
-        with col_vc:
-            if st.button("✕ 닫기", key="close_viewer"):
-                st.session_state.view_file_key = None
-                st.rerun()
-
+        pdf_title = fdata['name']
         ftype = fdata['type']
         fbytes = fdata['bytes']
-        b64 = base64.b64encode(fbytes).decode()
-
         if ftype == "application/pdf":
-            st.markdown(
-                f'<iframe src="data:application/pdf;base64,{b64}" '
-                f'width="100%" height="750px" style="border:1px solid #d4cfc2;border-radius:8px"></iframe>',
-                unsafe_allow_html=True
-            )
+            pdf_b64 = base64.b64encode(fbytes).decode()
         elif ftype in ["image/png", "image/jpeg", "image/jpg"]:
-            st.image(fbytes, use_container_width=True)
-        st.markdown("---")
+            pdf_is_image = True
+            pdf_img_bytes = fbytes
 
-    # 프로젝트 PDF 뷰어 (환경영향평가사 내장 PDF)
     elif vk and vk.startswith("proj_"):
-        # vk 형식: "proj_eias_7" 또는 "proj_gosi_환경화학_2023"
         parts = vk.split("_", 2)
         exam_kind = parts[1] if len(parts) > 1 else ""
-
         if exam_kind == "eias":
             r_num = int(parts[2])
             fname = EIAS_PDF_MAP.get(r_num, "")
-            title = f"제{r_num}회 환경영향평가사 기출문제"
-        else:  # gosi
-            subj_yr = parts[2]  # e.g. "환경화학_2023"
+            pdf_title = f"제{r_num}회 환경영향평가사 기출문제"
+        else:
+            subj_yr = parts[2]
             last_under = subj_yr.rfind("_")
             g_subj = subj_yr[:last_under]
             g_yr = int(subj_yr[last_under+1:])
             fname = GOSI_PDF_MAP.get(g_subj, {}).get(g_yr, "")
-            title = f"{g_yr}년 5급 공채 {g_subj}"
+            pdf_title = f"{g_yr}년 5급 공채 {g_subj}"
+        if fname:
+            try:
+                with open(f"{PDF_BASE}/{fname}", 'rb') as f:
+                    pdf_b64 = base64.b64encode(f.read()).decode()
+            except Exception as e:
+                st.error(f"PDF 로드 실패: {e}")
 
-        col_vh, col_vc = st.columns([6, 1])
-        with col_vh:
-            st.markdown(f"**📄 {title}**")
-        with col_vc:
+    # 팝업 오버레이 렌더링
+    if vk and (pdf_b64 or pdf_is_image):
+        if pdf_is_image:
+            st.image(pdf_img_bytes, caption=pdf_title, use_container_width=True)
             if st.button("✕ 닫기", key="close_viewer"):
                 st.session_state.view_file_key = None
                 st.rerun()
-
-        if fname:
-            pdf_path = f"{PDF_BASE}/{fname}"
-            try:
-                with open(pdf_path, 'rb') as f:
-                    pdf_bytes = f.read()
-                b64 = base64.b64encode(pdf_bytes).decode()
-                st.markdown(
-                    f'<iframe src="data:application/pdf;base64,{b64}" '
-                    f'width="100%" height="780px" style="border:1px solid #d4cfc2;border-radius:8px"></iframe>',
-                    unsafe_allow_html=True
-                )
-            except Exception as e:
-                st.error(f"PDF를 불러올 수 없습니다: {e}")
         else:
-            st.warning("해당 기출문제 PDF가 없습니다.")
-        st.markdown("---")
+            # 모달 팝업 스타일
+            close_col, _ = st.columns([1, 5])
+            with close_col:
+                if st.button("✕ PDF 닫기", key="close_viewer", type="secondary"):
+                    st.session_state.view_file_key = None
+                    st.rerun()
+            st.markdown(
+                f"""
+                <div style="
+                    position:fixed; top:0; left:0; width:100vw; height:100vh;
+                    background:rgba(0,0,0,0.6); z-index:9999;
+                    display:flex; align-items:center; justify-content:center;
+                ">
+                  <div style="
+                    background:#fff; border-radius:12px;
+                    width:88vw; height:90vh;
+                    display:flex; flex-direction:column;
+                    box-shadow:0 8px 40px rgba(0,0,0,0.4);
+                    overflow:hidden;
+                  ">
+                    <div style="
+                      padding:12px 20px; background:#2d5a27; color:#fff;
+                      font-weight:600; font-size:15px;
+                      display:flex; justify-content:space-between; align-items:center;
+                    ">
+                      <span>📄 {pdf_title}</span>
+                    </div>
+                    <iframe
+                      src="data:application/pdf;base64,{pdf_b64}"
+                      style="flex:1; border:none; width:100%;"
+                    ></iframe>
+                  </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+    elif vk:
+        st.warning("PDF 파일을 찾을 수 없습니다.")
+        if st.button("✕ 닫기", key="close_viewer"):
+            st.session_state.view_file_key = None
+            st.rerun()
 
     # ── 문제 입력 + 생성 ──
     st.markdown("### ✏️ 문제 입력")
