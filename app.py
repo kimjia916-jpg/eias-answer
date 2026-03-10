@@ -550,6 +550,7 @@ with col_t1:
         st.session_state.exam_type = "환경영향평가사"
         st.session_state.generated_answer = ''
         st.session_state.selected_q = ''
+        st.session_state.view_file_key = None
         st.rerun()
 with col_t2:
     if st.button("📋 5급 공채(기술고시)",
@@ -558,6 +559,7 @@ with col_t2:
         st.session_state.exam_type = "5급공채"
         st.session_state.generated_answer = ''
         st.session_state.selected_q = ''
+        st.session_state.view_file_key = None
         st.rerun()
 
 st.markdown("---")
@@ -583,6 +585,7 @@ if st.session_state.exam_type == "환경영향평가사":
                         st.session_state.selected_q = ''
                         st.session_state.q_input_main = ''
                         st.session_state.generated_answer = ''
+                        st.session_state.view_file_key = None
                         st.rerun()
 
         st.markdown("")
@@ -618,6 +621,7 @@ if st.session_state.exam_type == "환경영향평가사":
                     st.session_state.uploaded_files[file_key] = {'bytes': fb, 'name': uploaded.name, 'type': uploaded.type}
                     st.session_state.uploaded_texts[file_key] = fb.decode('utf-8')
                     st.success("업로드 완료!")
+                    st.session_state.view_file_key = None
                     st.rerun()
             else:
                 subj_filter = st.radio("과목", ['전체', '환경정책', '국토계획', '실무', '제도'],
@@ -640,6 +644,7 @@ if st.session_state.exam_type == "환경영향평가사":
                         st.session_state.selected_score = q['score'] if q['score'] else '25'
                         st.session_state.selected_subj = q['subj']
                         st.session_state.generated_answer = st.session_state.auto_saved_answers.get(auto_key, '')
+                        st.session_state.view_file_key = None
                         st.rerun()
         else:
             st.info("회차를 선택하면 기출문제 목록이 표시됩니다.")
@@ -665,6 +670,7 @@ else:
                     st.session_state.selected_q = ''
                     st.session_state.q_input_main = ''
                     st.session_state.generated_answer = ''
+                    st.session_state.view_file_key = None
                     st.rerun()
 
         st.markdown("**📖 선택과목**")
@@ -677,6 +683,7 @@ else:
                         st.session_state.selected_q = ''
                         st.session_state.q_input_main = ''
                         st.session_state.generated_answer = ''
+                        st.session_state.view_file_key = None
                         st.rerun()
 
         st.markdown("---")
@@ -692,6 +699,7 @@ else:
                         st.session_state.selected_q = ''
                         st.session_state.q_input_main = ''
                         st.session_state.generated_answer = ''
+                        st.session_state.view_file_key = None
                         st.rerun()
 
         subj = st.session_state.gosi_subject
@@ -721,6 +729,7 @@ else:
                     if uploaded.type == "text/plain":
                         st.session_state.uploaded_texts[file_key] = fb.decode('utf-8')
                     st.success("업로드 완료!")
+                    st.session_state.view_file_key = None
                     st.rerun()
             elif file_key in st.session_state.uploaded_texts:
                 text = st.session_state.uploaded_texts[file_key]
@@ -737,6 +746,7 @@ else:
                         st.session_state.q_input_main = q['text']
                         st.session_state.selected_score = q['score'] if q['score'] else '25'
                         st.session_state.generated_answer = st.session_state.auto_saved_answers.get(auto_key, '')
+                        st.session_state.view_file_key = None
                         st.rerun()
             else:
                 if has_proj:
@@ -791,6 +801,7 @@ with main_col:
             st.session_state.save_success = True
         else:
             st.session_state.save_duplicate = True
+        st.session_state.view_file_key = None
         st.rerun()
 
     if st.session_state.get('save_success'):
@@ -807,6 +818,7 @@ with main_col:
             st.session_state.selected_q = q_input
             st.session_state.is_generating = True
             st.session_state.generated_answer = ''
+            st.session_state.view_file_key = None
             st.rerun()
 
     st.markdown("---")
@@ -869,6 +881,7 @@ with main_col:
             if st.button("🔄 재생성", use_container_width=True):
                 st.session_state.generated_answer = ''
                 st.session_state.is_generating = True
+                st.session_state.view_file_key = None
                 st.rerun()
     else:
         st.markdown("""<div class="empty-state">
@@ -888,6 +901,7 @@ with st.sidebar:
         if st.button("🗑 자동저장 전체 초기화", use_container_width=True):
             st.session_state.auto_saved_answers = {}
             st.session_state.generated_answer = ''
+            st.session_state.view_file_key = None
             st.rerun()
 
     if st.session_state.saved_answers:
@@ -895,6 +909,7 @@ with st.sidebar:
         st.markdown(f"### 💾 저장된 답안 ({len(st.session_state.saved_answers)}개)")
         if st.button("🗑 전체 삭제", key="del_all_saved", use_container_width=True):
             st.session_state.saved_answers = []
+            st.session_state.view_file_key = None
             st.rerun()
         for i, saved in enumerate(reversed(st.session_state.saved_answers)):
             ri = len(st.session_state.saved_answers) - 1 - i
@@ -905,10 +920,12 @@ with st.sidebar:
                     st.session_state.generated_answer = saved['answer']
                     st.session_state.q_input_main = saved['question']
                     st.session_state.selected_q = saved['question']
+                    st.session_state.view_file_key = None
                     st.rerun()
             with c2:
                 if st.button("✕", key=f"del_{ri}"):
                     st.session_state.saved_answers.pop(ri)
+                    st.session_state.view_file_key = None
                     st.rerun()
 
 
