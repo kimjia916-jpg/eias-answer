@@ -137,7 +137,7 @@ GOSI_SUBJECTS_REQUIRED = ["환경화학", "환경계획", "상하수도공학"]
 GOSI_SUBJECTS_ELECTIVE = ["소음진동학", "폐기물처리", "환경미생물학", "환경영향평가론", "대기오염관리", "수질오염관리"]
 GOSI_ALL_SUBJECTS = GOSI_SUBJECTS_REQUIRED + GOSI_SUBJECTS_ELECTIVE
 
-PDF_BASE = "/mnt/project"
+PDF_BASE = "data"
 
 # ─── 환경영향평가사 PDF 매핑 (1~27회) ───
 EIAS_PDF_MAP = {
@@ -664,98 +664,177 @@ else:
     sidebar_col, main_col = st.columns([1, 2], gap="large")
 
     with sidebar_col:
-        st.markdown("### 📚 과목 선택")
+        st.markdown("### 📋 5급 공채 기출문제")
 
-        st.markdown("**📌 필수과목**")
-        req_cols = st.columns(3)
-        for i, subj in enumerate(GOSI_SUBJECTS_REQUIRED):
-            with req_cols[i]:
-                is_active = st.session_state.gosi_subject == subj
-                if st.button(subj, key=f"gosi_subj_req_{subj}",
-                             type="primary" if is_active else "secondary",
-                             use_container_width=True):
-                    st.session_state.gosi_subject = subj
-                    st.session_state.gosi_year = None
-                    st.session_state.selected_q = ''
-                    st.session_state.q_input_main = ''
-                    st.session_state.generated_answer = ''
-                    st.rerun()
+        # ── 선택 모드 토글 ──
+        if 'gosi_mode' not in st.session_state:
+            st.session_state.gosi_mode = '과목→연도'
 
-        st.markdown("**📖 선택과목**")
-        for i in range(0, len(GOSI_SUBJECTS_ELECTIVE), 2):
-            e_cols = st.columns(2)
-            for j, subj in enumerate(GOSI_SUBJECTS_ELECTIVE[i:i+2]):
-                with e_cols[j]:
-                    is_active = st.session_state.gosi_subject == subj
-                    if st.button(subj, key=f"gosi_subj_el_{subj}",
-                                 type="primary" if is_active else "secondary",
+        mode_c1, mode_c2 = st.columns(2)
+        with mode_c1:
+            if st.button("📚 과목→연도",
+                         type="primary" if st.session_state.gosi_mode == '과목→연도' else "secondary",
+                         use_container_width=True):
+                st.session_state.gosi_mode = '과목→연도'
+                st.rerun()
+        with mode_c2:
+            if st.button("📅 연도→과목",
+                         type="primary" if st.session_state.gosi_mode == '연도→과목' else "secondary",
+                         use_container_width=True):
+                st.session_state.gosi_mode = '연도→과목'
+                st.rerun()
+
+        st.markdown("---")
+        subj = st.session_state.gosi_subject
+        yr   = st.session_state.gosi_year
+
+        # ══════════════════════════════
+        # 모드 1: 과목 먼저 → 연도
+        # ══════════════════════════════
+        if st.session_state.gosi_mode == '과목→연도':
+
+            st.markdown("**📌 필수과목**")
+            req_cols = st.columns(3)
+            for i, s in enumerate(GOSI_SUBJECTS_REQUIRED):
+                with req_cols[i]:
+                    active = subj == s
+                    if st.button(s, key=f"gm1_req_{s}",
+                                 type="primary" if active else "secondary",
                                  use_container_width=True):
-                        st.session_state.gosi_subject = subj
+                        st.session_state.gosi_subject = s
                         st.session_state.gosi_year = None
                         st.session_state.selected_q = ''
                         st.session_state.q_input_main = ''
                         st.session_state.generated_answer = ''
                         st.rerun()
 
-        st.markdown("---")
+            st.markdown("**📖 선택과목**")
+            for i in range(0, len(GOSI_SUBJECTS_ELECTIVE), 2):
+                e_cols = st.columns(2)
+                for j, s in enumerate(GOSI_SUBJECTS_ELECTIVE[i:i+2]):
+                    with e_cols[j]:
+                        active = subj == s
+                        if st.button(s, key=f"gm1_el_{s}",
+                                     type="primary" if active else "secondary",
+                                     use_container_width=True):
+                            st.session_state.gosi_subject = s
+                            st.session_state.gosi_year = None
+                            st.session_state.selected_q = ''
+                            st.session_state.q_input_main = ''
+                            st.session_state.generated_answer = ''
+                            st.rerun()
+
+            if subj:
+                st.markdown(f"---\n**📅 연도 선택 — {subj}**")
+                st.caption("굵은글씨=PDF있음")
+                for row_start in range(0, len(GOSI_YEARS), 4):
+                    cols = st.columns(4)
+                    for i, y in enumerate(GOSI_YEARS[row_start:row_start+4]):
+                        with cols[i]:
+                            has_proj = y in GOSI_PDF_MAP.get(subj, {})
+                            is_active = yr == y
+                            label = f"**{y}**" if has_proj else str(y)
+                            if st.button(label, key=f"gm1_yr_{subj}_{y}",
+                                         type="primary" if is_active else "secondary",
+                                         use_container_width=True):
+                                st.session_state.gosi_year = y
+                                st.session_state.selected_q = ''
+                                st.session_state.q_input_main = ''
+                                st.session_state.generated_answer = ''
+                                st.rerun()
+
+        # ══════════════════════════════
+        # 모드 2: 연도 먼저 → 과목
+        # ══════════════════════════════
+        else:
+            st.markdown("**📅 연도 선택**")
+            st.caption("굵은글씨=해당연도 1개 이상 PDF있음")
+
+            # 연도별로 PDF 있는 과목 수 계산
+            def count_yr_pdfs(y):
+                return sum(1 for s in GOSI_ALL_SUBJECTS if y in GOSI_PDF_MAP.get(s, {}))
+
+            for row_start in range(0, len(GOSI_YEARS), 4):
+                cols = st.columns(4)
+                for i, y in enumerate(GOSI_YEARS[row_start:row_start+4]):
+                    with cols[i]:
+                        has_any = count_yr_pdfs(y) > 0
+                        is_active = yr == y
+                        label = f"**{y}**" if has_any else str(y)
+                        if st.button(label, key=f"gm2_yr_{y}",
+                                     type="primary" if is_active else "secondary",
+                                     use_container_width=True):
+                            st.session_state.gosi_year = y
+                            st.session_state.gosi_subject = ''
+                            st.session_state.selected_q = ''
+                            st.session_state.q_input_main = ''
+                            st.session_state.generated_answer = ''
+                            st.rerun()
+
+            if yr:
+                st.markdown(f"---\n**📚 과목 선택 — {yr}년**")
+                st.markdown("**📌 필수과목**")
+                req_cols = st.columns(3)
+                for i, s in enumerate(GOSI_SUBJECTS_REQUIRED):
+                    with req_cols[i]:
+                        has_proj = yr in GOSI_PDF_MAP.get(s, {})
+                        active = subj == s
+                        label = f"**{s}**" if has_proj else s
+                        if st.button(label, key=f"gm2_req_{s}",
+                                     type="primary" if active else "secondary",
+                                     use_container_width=True):
+                            st.session_state.gosi_subject = s
+                            st.session_state.selected_q = ''
+                            st.session_state.q_input_main = ''
+                            st.session_state.generated_answer = ''
+                            st.rerun()
+
+                st.markdown("**📖 선택과목**")
+                for i in range(0, len(GOSI_SUBJECTS_ELECTIVE), 2):
+                    e_cols = st.columns(2)
+                    for j, s in enumerate(GOSI_SUBJECTS_ELECTIVE[i:i+2]):
+                        with e_cols[j]:
+                            has_proj = yr in GOSI_PDF_MAP.get(s, {})
+                            active = subj == s
+                            label = f"**{s}**" if has_proj else s
+                            if st.button(label, key=f"gm2_el_{s}",
+                                         type="primary" if active else "secondary",
+                                         use_container_width=True):
+                                st.session_state.gosi_subject = s
+                                st.session_state.selected_q = ''
+                                st.session_state.q_input_main = ''
+                                st.session_state.generated_answer = ''
+                                st.rerun()
+
+        # ══════════════════════════════
+        # 과목+연도 모두 선택된 경우 PDF·문제 표시
+        # ══════════════════════════════
         subj = st.session_state.gosi_subject
-        st.markdown(f"### 📅 연도 선택 — {subj}")
-        st.caption("🟩 데이터 있음 · 📂 업로드됨 · ⬜ 업로드 필요")
-
-        # 연도 그리드 (4열)
-        years_per_row = 4
-        for row_start in range(0, len(GOSI_YEARS), years_per_row):
-            cols = st.columns(years_per_row)
-            for i, yr in enumerate(GOSI_YEARS[row_start:row_start+years_per_row]):
-                with cols[i]:
-                    file_key = f"gosi_{subj}_{yr}"
-                    has_upload = file_key in st.session_state.uploaded_files
-                    has_proj = yr in GOSI_PDF_MAP.get(subj, {})
-                    is_active = st.session_state.gosi_year == yr
-
-                    if has_proj:
-                        label = f"**{yr}**"  # PDF 있음
-                    elif has_upload:
-                        label = f"📂{yr}"
-                    else:
-                        label = f"{yr}"
-
-                    btn_type = "primary" if is_active else "secondary"
-                    if st.button(label, key=f"gosi_yr_{subj}_{yr}",
-                                 type=btn_type, use_container_width=True):
-                        st.session_state.gosi_year = yr
-                        st.session_state.selected_q = ''
-                        st.session_state.q_input_main = ''
-                        st.session_state.generated_answer = ''
-                        st.rerun()
-
-        # 선택된 연도 처리
-        yr = st.session_state.gosi_year
-        if yr:
+        yr   = st.session_state.gosi_year
+        if subj and yr:
             file_key = f"gosi_{subj}_{yr}"
-            has_upload = file_key in st.session_state.uploaded_files
             has_proj = yr in GOSI_PDF_MAP.get(subj, {})
+            has_upload = file_key in st.session_state.uploaded_files
 
-            st.markdown(f"#### {yr}년 {subj}")
+            st.markdown(f"---\n#### 📄 {yr}년 {subj}")
 
             # PDF 보기 버튼
-            if has_proj or has_upload:
-                btn_c1, btn_c2 = st.columns(2)
-                with btn_c1:
-                    if has_proj:
-                        if st.button("📖 원본 PDF 보기", key=f"view_gosi_proj_{subj}_{yr}", use_container_width=True):
-                            st.session_state.view_file_key = f"proj_gosi_{subj}_{yr}"
-                            st.rerun()
-                with btn_c2:
-                    if has_upload and st.session_state.uploaded_files[file_key].get('type') != 'text/plain':
-                        if st.button("📄 업로드 보기", key=f"view_gosi_up_{subj}_{yr}", use_container_width=True):
-                            st.session_state.view_file_key = file_key
-                            st.rerun()
+            btn_c1, btn_c2 = st.columns(2)
+            with btn_c1:
+                if has_proj:
+                    if st.button("📖 PDF 보기", key=f"view_gosi_proj_{subj}_{yr}", use_container_width=True):
+                        st.session_state.view_file_key = f"proj_gosi_{subj}_{yr}"
+                        st.rerun()
+            with btn_c2:
+                if has_upload and st.session_state.uploaded_files[file_key].get('type') != 'text/plain':
+                    if st.button("📄 업로드 보기", key=f"view_gosi_up_{subj}_{yr}", use_container_width=True):
+                        st.session_state.view_file_key = file_key
+                        st.rerun()
 
             if not has_proj and not has_upload:
-                st.warning(f"{yr}년 {subj} 기출문제가 없습니다.")
+                st.warning(f"해당 기출문제 PDF가 없습니다.")
                 uploaded = st.file_uploader(
-                    f"{yr}년 {subj} 파일 업로드 (PDF/이미지/텍스트)",
+                    f"{yr}년 {subj} 파일 업로드",
                     type=["pdf", "png", "jpg", "jpeg", "txt"],
                     key=f"upload_gosi_{subj}_{yr}"
                 )
@@ -768,27 +847,27 @@ else:
                         st.session_state.uploaded_texts[file_key] = file_bytes.decode('utf-8')
                     st.success("업로드 완료!")
                     st.rerun()
+            elif file_key in st.session_state.uploaded_texts:
+                text = st.session_state.uploaded_texts[file_key]
+                qs = parse_gosi_questions(text)
+                st.caption(f"총 {len(qs)}문제")
+                for idx, q in enumerate(qs):
+                    score_txt = f"[{q['score']}점]" if q['score'] else ""
+                    preview = q['text'][:50] + ('…' if len(q['text']) > 50 else '')
+                    auto_key = q['text'][:80]
+                    has_auto = auto_key in st.session_state.auto_saved_answers
+                    lbl = f"{'✅ ' if has_auto else ''}{score_txt}\n{preview}"
+                    if st.button(lbl, key=f"gosi_q_{subj}_{yr}_{idx}", use_container_width=True):
+                        st.session_state.selected_q = q['text']
+                        st.session_state.q_input_main = q['text']
+                        st.session_state.selected_score = q['score'] if q['score'] else '25'
+                        st.session_state.generated_answer = st.session_state.auto_saved_answers.get(auto_key, '')
+                        st.rerun()
             else:
-                # 텍스트 업로드된 경우 문제 파싱
-                if file_key in st.session_state.uploaded_texts:
-                    text = st.session_state.uploaded_texts[file_key]
-                    qs = parse_gosi_questions(text)
-                    st.caption(f"총 {len(qs)}문제")
-                    for idx, q in enumerate(qs):
-                        score_txt = f"[{q['score']}점]" if q['score'] else ""
-                        preview = q['text'][:50] + ('…' if len(q['text']) > 50 else '')
-                        auto_key = q['text'][:80]
-                        has_auto = auto_key in st.session_state.auto_saved_answers
-                        label = f"{'✅ ' if has_auto else ''}{score_txt}\n{preview}"
-                        if st.button(label, key=f"gosi_q_{subj}_{yr}_{idx}", use_container_width=True):
-                            st.session_state.selected_q = q['text']
-                            st.session_state.q_input_main = q['text']
-                            st.session_state.selected_score = q['score'] if q['score'] else '25'
-                            st.session_state.generated_answer = st.session_state.auto_saved_answers.get(auto_key, '')
-                            st.rerun()
+                if has_proj:
+                    st.info("📖 위 PDF 보기 버튼으로 문제를 확인하고 직접 입력해 주세요.")
                 else:
-                    st.info("📖 위 버튼으로 원본 PDF를 보고 문제를 직접 입력해 주세요.")
-
+                    st.info("문제를 직접 입력해 주세요.")
 
 
 # ════════════════════════════════════════════
