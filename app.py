@@ -129,13 +129,133 @@ div[data-testid="stRadio"] label { font-size:13px; }
 
 # ─── 상수 정의 ───
 EIAS_ROUNDS = list(range(1, 28))   # 1~27회
-EIAS_DATA_AVAILABLE = list(range(1, 17))  # 1~16회 데이터 내장
+EIAS_DATA_AVAILABLE = list(range(1, 17))  # 1~16회 텍스트 데이터 내장
 
 GOSI_YEARS = list(range(2025, 2001, -1))  # 2025~2002
 
 GOSI_SUBJECTS_REQUIRED = ["환경화학", "환경계획", "상하수도공학"]
 GOSI_SUBJECTS_ELECTIVE = ["소음진동학", "폐기물처리", "환경미생물학", "환경영향평가론", "대기오염관리", "수질오염관리"]
 GOSI_ALL_SUBJECTS = GOSI_SUBJECTS_REQUIRED + GOSI_SUBJECTS_ELECTIVE
+
+PDF_BASE = "/mnt/project"
+
+# ─── 환경영향평가사 PDF 매핑 (1~27회) ───
+EIAS_PDF_MAP = {
+    1:  "제1회_환경영향평가사_필기시험_기출문제_1.pdf",
+    2:  "제2회_환경영향평가사_필기시험_기출문제.pdf",
+    3:  "제3회_환경영향평가사_필기시험_기출문제.pdf",
+    4:  "제4회_환경영향평가사_필기시험_기출문제.pdf",
+    5:  "제5회_환경영향평가사_필기시험_기출문제.pdf",
+    6:  "제6회_환경영향평가사_필기시험_기출문제.pdf",
+    7:  "제7회_환경영향평가사_필기시험_기출문제.pdf",
+    8:  "제8회_환경영향평가사_필기시험_기출문제.pdf",
+    9:  "제9회_필기시험_문제지.pdf",
+    10: "제10회_필기시험_문제지.pdf",
+    11: "제11회_필기시험_문제지.pdf",
+    12: "제12회_필기시험_문제지.pdf",
+    13: "제13회_필기시험_문제지.pdf",
+    14: "제14회_필기시험_문제지.pdf",
+    15: "제15회_필기시험_문제지_최종.pdf",
+    16: "제16회_필기시험_문제지_최종완료_hwp.pdf",
+    17: "제17회_필기시험_문제지.pdf",
+    18: "제18회_필기시험_문제지.pdf",
+    19: "제19회_필기시험_문제지_1_1.pdf",
+    20: "제20회_필기시험_문제.pdf",
+    21: "제21회_환경영향평가사_필기시험_기출문제.pdf",
+    22: "제22회_환경영향평가사_필기시험_기출문제_1.pdf",
+    27: "제27회_필기시험_실전문제_해설_수정__2026_02_22_21_30_39.pdf",
+}
+EIAS_PDF_AVAILABLE = set(EIAS_PDF_MAP.keys())
+
+# ─── 5급 기술고시 PDF 매핑 (과목별·연도별) ───
+GOSI_PDF_MAP = {
+    "환경화학": {
+        2002: "01__2002년_환경화학.pdf",
+        2004: "01__2004년_환경화학.pdf",
+        2005: "01__2005년_환경화학.pdf",
+        2006: "01__2006년_환경화학.pdf",
+        2007: "070825_행정고등고시기술직_2차_시험_환경화학.pdf",
+        2022: "환경화학.pdf",
+        2023: "230705_5급_기술_2차_환경화학.pdf",
+        2024: "240709_5급_과기_2차_환경화학.pdf",
+        2025: "250704_5급_2차_과기_환경화학.pdf",
+    },
+    "환경계획": {
+        2002: "02__2002년_환경계획.pdf",
+        2003: "02__2003_환경계획.pdf",
+        2004: "02__2004년_환경계획.pdf",
+        2005: "02__2005년_환경계획.pdf",
+        2006: "02__2006년_환경계획.pdf",
+        2007: "070825_행정고등고시기술직_2차_시험_환경계획.pdf",
+        2022: "환경계획.pdf",
+        2023: "230705_5급_기술_2차_환경계획.pdf",
+        2024: "240709_5급_과기_2차_환경계획.pdf",
+        2025: "250704_5급_2차_과기_환경계획.pdf",
+    },
+    "상하수도공학": {
+        2002: "03__2002년_상하수도공학.pdf",
+        2004: "03__2004년_상하수도공학.pdf",
+        2005: "03__2005년_상하수도공학.pdf",
+        2006: "03__2006년_상하수도공학.pdf",
+        2007: "070825_행정고등고시기술직_2차_시험_상하수도공학.pdf",
+        2022: "상하수도공학.pdf",
+        2023: "230705_5급_기술_2차_상하수도공학.pdf",
+        2024: "240709_5급_과기_2차_상하수도공학.pdf",
+        2025: "250704_5급_2차_과기_상하수도공학.pdf",
+    },
+    "소음진동학": {
+        2002: "2002년_소음진동학.pdf",
+        2004: "2004년_소음진동학.pdf",
+        2005: "2005년_소음진동학.pdf",
+        2006: "2006년_소음진동학.pdf",
+        2022: "소음진동학.pdf",
+    },
+    "폐기물처리": {
+        2002: "2002년_폐기물처리.pdf",
+        2004: "2004년_폐기물처리.pdf",
+        2005: "2005년_폐기물처리.pdf",
+        2006: "2006년_폐기물처리.pdf",
+        2022: "폐기물처리.pdf",
+        2023: "230705_5급_기술_2차_폐기물처리.pdf",
+        2024: "240709_5급_과기_2차_폐기물처리.pdf",
+    },
+    "환경미생물학": {
+        2002: "2002년_환경미생물학.pdf",
+        2004: "2004년_환경미생물학.pdf",
+        2005: "2005년_환경미생물학.pdf",
+        2006: "2006년_환경미생물학.pdf",
+        2022: "환경미생물학.pdf",
+        2023: "230705_5급_기술_2차_환경미생물학.pdf",
+        2024: "240709_5급_과기_2차_환경미생물학.pdf",
+    },
+    "환경영향평가론": {
+        2002: "2002년_환경영향평가론.pdf",
+        2004: "2004년_환경영향평가론.pdf",
+        2005: "2005년_환경영향평가론.pdf",
+        2006: "2006년_환경영향평가론.pdf",
+        2022: "환경영향평가론.pdf",
+        2023: "230705_5급_기술_2차_환경영향평가론.pdf",
+        2024: "240709_5급_과기_2차_환경영향평가론.pdf",
+    },
+    "대기오염관리": {
+        2002: "2002년_대기오염관리.pdf",
+        2004: "2004년_대기오염관리.pdf",
+        2005: "2005년_대기오염관리.pdf",
+        2006: "2006년_대기오염관리.pdf",
+        2022: "대기오염관리.pdf",
+        2023: "230705_5급_기술_2차_대기오염관리.pdf",
+        2024: "240709_5급_과기_2차_대기오염관리.pdf",
+    },
+    "수질오염관리": {
+        2002: "2002년_수질오염관리.pdf",
+        2004: "2004년_수질오염관리.pdf",
+        2005: "2005년_수질오염관리.pdf",
+        2006: "2006년_수질오염관리.pdf",
+        2022: "수질오염관리.pdf",
+        2023: "230705_5급_기술_2차_수질오염관리.pdf",
+        2024: "240709_5급_과기_2차_수질오염관리.pdf",
+    },
+}
 
 
 # ─── 기출문제 파싱 헬퍼 ───
@@ -461,41 +581,43 @@ if st.session_state.exam_type == "환경영향평가사":
 
             st.markdown(f"#### 제{r}회 기출문제")
 
-            # 데이터 없으면 업로드 유도
+            has_proj_pdf = r in EIAS_PDF_AVAILABLE
+            file_key = f"eias_{r}"
+
+            # PDF 보기 버튼 (항상 상단에)
+            if has_proj_pdf or has_upload:
+                btn_col1, btn_col2 = st.columns(2)
+                with btn_col1:
+                    if has_proj_pdf:
+                        if st.button("📖 원본 PDF 보기", key=f"view_eias_proj_{r}", use_container_width=True):
+                            st.session_state.view_file_key = f"proj_eias_{r}"
+                            st.rerun()
+                with btn_col2:
+                    if has_upload and st.session_state.uploaded_files[file_key].get('type') != 'text/plain':
+                        if st.button("📄 업로드 PDF 보기", key=f"view_eias_up_{r}", use_container_width=True):
+                            st.session_state.view_file_key = file_key
+                            st.rerun()
+
+            # 텍스트 데이터 없으면 업로드 유도
             if not has_data and not has_upload:
-                st.warning(f"제{r}회 기출문제 데이터가 없습니다.")
+                if has_proj_pdf:
+                    st.info("위 버튼으로 원본 PDF를 보고, 문제를 직접 입력해 주세요.\n또는 텍스트 파일을 업로드하면 문제 목록이 자동 생성됩니다.")
+                else:
+                    st.warning(f"제{r}회 기출문제 파일이 없습니다.")
                 uploaded = st.file_uploader(
-                    f"제{r}회 기출문제 파일 업로드 (PDF/이미지/텍스트)",
-                    type=["pdf", "png", "jpg", "jpeg", "txt"],
+                    f"제{r}회 기출문제 텍스트 업로드",
+                    type=["txt"],
                     key=f"upload_eias_{r}"
                 )
                 if uploaded:
                     file_bytes = uploaded.read()
-                    st.session_state.uploaded_files[f"eias_{r}"] = {
-                        'bytes': file_bytes,
-                        'name': uploaded.name,
-                        'type': uploaded.type
+                    st.session_state.uploaded_files[file_key] = {
+                        'bytes': file_bytes, 'name': uploaded.name, 'type': uploaded.type
                     }
-                    # 텍스트 파일이면 문제 파싱용으로 저장
-                    if uploaded.type == "text/plain":
-                        st.session_state.uploaded_texts[f"eias_{r}"] = file_bytes.decode('utf-8')
+                    st.session_state.uploaded_texts[file_key] = file_bytes.decode('utf-8')
                     st.success("업로드 완료!")
                     st.rerun()
             else:
-                # 원본 PDF 보기 버튼
-                file_key = f"eias_{r}"
-                btn_col1, btn_col2 = st.columns(2)
-                with btn_col1:
-                    # 업로드된 파일 보기
-                    if has_upload and st.session_state.uploaded_files[file_key]['type'] != 'text/plain':
-                        if st.button("📄 업로드 PDF 보기", key=f"view_eias_up_{r}", use_container_width=True):
-                            st.session_state.view_file_key = file_key
-                            st.rerun()
-                with btn_col2:
-                    # 프로젝트 내장 PDF 보기 (항상 표시)
-                    if st.button("📖 원본 PDF 보기", key=f"view_eias_proj_{r}", use_container_width=True):
-                        st.session_state.view_file_key = f"proj_pdf_{r}"
-                        st.rerun()
 
                 # 과목 필터
                 subj_opts = ['전체', '환경정책', '국토계획', '실무', '제도']
@@ -588,12 +710,15 @@ else:
                 with cols[i]:
                     file_key = f"gosi_{subj}_{yr}"
                     has_upload = file_key in st.session_state.uploaded_files
+                    has_proj = yr in GOSI_PDF_MAP.get(subj, {})
                     is_active = st.session_state.gosi_year == yr
 
-                    if has_upload:
+                    if has_proj:
+                        label = f"**{yr}**"  # PDF 있음
+                    elif has_upload:
                         label = f"📂{yr}"
                     else:
-                        label = f"⬜{yr}"
+                        label = f"{yr}"
 
                     btn_type = "primary" if is_active else "secondary"
                     if st.button(label, key=f"gosi_yr_{subj}_{yr}",
@@ -609,10 +734,25 @@ else:
         if yr:
             file_key = f"gosi_{subj}_{yr}"
             has_upload = file_key in st.session_state.uploaded_files
+            has_proj = yr in GOSI_PDF_MAP.get(subj, {})
 
             st.markdown(f"#### {yr}년 {subj}")
 
-            if not has_upload:
+            # PDF 보기 버튼
+            if has_proj or has_upload:
+                btn_c1, btn_c2 = st.columns(2)
+                with btn_c1:
+                    if has_proj:
+                        if st.button("📖 원본 PDF 보기", key=f"view_gosi_proj_{subj}_{yr}", use_container_width=True):
+                            st.session_state.view_file_key = f"proj_gosi_{subj}_{yr}"
+                            st.rerun()
+                with btn_c2:
+                    if has_upload and st.session_state.uploaded_files[file_key].get('type') != 'text/plain':
+                        if st.button("📄 업로드 보기", key=f"view_gosi_up_{subj}_{yr}", use_container_width=True):
+                            st.session_state.view_file_key = file_key
+                            st.rerun()
+
+            if not has_proj and not has_upload:
                 st.warning(f"{yr}년 {subj} 기출문제가 없습니다.")
                 uploaded = st.file_uploader(
                     f"{yr}년 {subj} 파일 업로드 (PDF/이미지/텍스트)",
@@ -622,22 +762,14 @@ else:
                 if uploaded:
                     file_bytes = uploaded.read()
                     st.session_state.uploaded_files[file_key] = {
-                        'bytes': file_bytes,
-                        'name': uploaded.name,
-                        'type': uploaded.type
+                        'bytes': file_bytes, 'name': uploaded.name, 'type': uploaded.type
                     }
                     if uploaded.type == "text/plain":
                         st.session_state.uploaded_texts[file_key] = file_bytes.decode('utf-8')
                     st.success("업로드 완료!")
                     st.rerun()
             else:
-                # 원본 보기 버튼
-                if st.session_state.uploaded_files[file_key]['type'] != 'text/plain':
-                    if st.button("🖼 원본 문제 보기", key=f"view_gosi_{yr}", use_container_width=True):
-                        st.session_state.view_file_key = file_key
-                        st.rerun()
-
-                # 텍스트로 업로드된 경우 문제 파싱
+                # 텍스트 업로드된 경우 문제 파싱
                 if file_key in st.session_state.uploaded_texts:
                     text = st.session_state.uploaded_texts[file_key]
                     qs = parse_gosi_questions(text)
@@ -655,7 +787,8 @@ else:
                             st.session_state.generated_answer = st.session_state.auto_saved_answers.get(auto_key, '')
                             st.rerun()
                 else:
-                    st.info("📄 PDF/이미지 파일은 원본 보기로 확인 후 문제를 직접 입력해 주세요.")
+                    st.info("📖 위 버튼으로 원본 PDF를 보고 문제를 직접 입력해 주세요.")
+
 
 
 # ════════════════════════════════════════════
@@ -692,40 +825,46 @@ with main_col:
         st.markdown("---")
 
     # 프로젝트 PDF 뷰어 (환경영향평가사 내장 PDF)
-    elif vk and vk.startswith("proj_pdf_"):
-        import os, glob
-        round_num = vk.replace("proj_pdf_", "")
-        # 프로젝트 폴더에서 해당 회차 PDF 찾기
-        pdf_patterns = [
-            f"/mnt/project/*{round_num}회*.pdf",
-            f"/mnt/project/*제{round_num}회*.pdf",
-        ]
-        found_pdf = None
-        for pat in pdf_patterns:
-            matches = glob.glob(pat)
-            if matches:
-                found_pdf = matches[0]
-                break
+    elif vk and vk.startswith("proj_"):
+        # vk 형식: "proj_eias_7" 또는 "proj_gosi_환경화학_2023"
+        parts = vk.split("_", 2)
+        exam_kind = parts[1] if len(parts) > 1 else ""
+
+        if exam_kind == "eias":
+            r_num = int(parts[2])
+            fname = EIAS_PDF_MAP.get(r_num, "")
+            title = f"제{r_num}회 환경영향평가사 기출문제"
+        else:  # gosi
+            subj_yr = parts[2]  # e.g. "환경화학_2023"
+            last_under = subj_yr.rfind("_")
+            g_subj = subj_yr[:last_under]
+            g_yr = int(subj_yr[last_under+1:])
+            fname = GOSI_PDF_MAP.get(g_subj, {}).get(g_yr, "")
+            title = f"{g_yr}년 5급 공채 {g_subj}"
 
         col_vh, col_vc = st.columns([6, 1])
         with col_vh:
-            st.markdown(f"**📄 제{round_num}회 원본 문제지**")
+            st.markdown(f"**📄 {title}**")
         with col_vc:
             if st.button("✕ 닫기", key="close_viewer"):
                 st.session_state.view_file_key = None
                 st.rerun()
 
-        if found_pdf:
-            with open(found_pdf, 'rb') as f:
-                pdf_bytes = f.read()
-            b64 = base64.b64encode(pdf_bytes).decode()
-            st.markdown(
-                f'<iframe src="data:application/pdf;base64,{b64}" '
-                f'width="100%" height="750px" style="border:1px solid #d4cfc2;border-radius:8px"></iframe>',
-                unsafe_allow_html=True
-            )
+        if fname:
+            pdf_path = f"{PDF_BASE}/{fname}"
+            try:
+                with open(pdf_path, 'rb') as f:
+                    pdf_bytes = f.read()
+                b64 = base64.b64encode(pdf_bytes).decode()
+                st.markdown(
+                    f'<iframe src="data:application/pdf;base64,{b64}" '
+                    f'width="100%" height="780px" style="border:1px solid #d4cfc2;border-radius:8px"></iframe>',
+                    unsafe_allow_html=True
+                )
+            except Exception as e:
+                st.error(f"PDF를 불러올 수 없습니다: {e}")
         else:
-            st.warning(f"제{round_num}회 PDF 파일을 찾을 수 없습니다. 업로드 기능을 이용해주세요.")
+            st.warning("해당 기출문제 PDF가 없습니다.")
         st.markdown("---")
 
     # ── 문제 입력 + 생성 ──
